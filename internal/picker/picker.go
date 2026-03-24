@@ -417,6 +417,17 @@ type pickerModel struct {
 	openspecAvailable bool            // true when openspec CLI is in PATH
 	wfCursor          int             // cursor for workflow choice (0=fresh, 1=openspec)
 	launchedWorktree  string          // worktree path created by doLaunch (may be "")
+
+	// ── fuzzy search (StateSearch) ──
+	searchInput   textinput.Model
+	allItems      []PickerItem
+	filteredItems []PickerItem
+	itemCursor    int
+
+	// ── skill/agent provider picker (StateProvider repurposed) ──
+	selectedItem   *PickerItem
+	skillProviders []ProviderDef
+	spCursor       int
 }
 
 func newPickerModel() pickerModel {
@@ -428,13 +439,28 @@ func newPickerModel() pickerModel {
 	oi.Placeholder = "e.g. add-login-flow"
 	oi.CharLimit = 80
 
+	si := textinput.New()
+	si.Placeholder = "search skills, agents, pipelines, providers..."
+	si.CharLimit = 80
+	si.Focus()
+
+	cwd, _ := os.Getwd()
+	home, _ := os.UserHomeDir()
+	provs := buildProviders()
+	sessions := listExistingSessions()
+	all := BuildPickerItems(sessions, provs, cwd, home)
+
 	_, openspecErr := exec.LookPath("openspec")
 	return pickerModel{
-		providers:         buildProviders(),
-		sessions:          listExistingSessions(),
+		providers:         provs,
+		sessions:          sessions,
 		workdirInput:      ti,
 		openspecInput:     oi,
 		openspecAvailable: openspecErr == nil,
+		searchInput:       si,
+		allItems:          all,
+		filteredItems:     ApplyFuzzy("", all),
+		skillProviders:    provs,
 	}
 }
 
@@ -468,6 +494,104 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.state == StateSearch {
+			switch msg.String() {
+			case "ctrl+c", "q":
+				m.quit = true
+				return m, tea.Quit
+
+			case "j", "down":
+				if m.itemCursor < len(m.filteredItems)-1 {
+					m.itemCursor++
+				}
+
+			case "k", "up":
+				if m.itemCursor > 0 {
+					m.itemCursor--
+				}
+
+			case "enter":
+				if len(m.filteredItems) == 0 {
+					return m, nil
+				}
+				item := m.filteredItems[m.itemCursor]
+				m.selectedItem = &item
+				switch item.Kind {
+				case "session":
+					focusWindow(item.SessionIndex)
+					m.quit = true
+					return m, tea.Quit
+
+				case "pipeline":
+					m.workdirInput.SetValue(currentPanePath())
+					m.workdirInput.Focus()
+					m.state = StateWorkdir
+
+				case "skill", "agent":
+					m.spCursor = 0
+					m.state = StateProvider
+
+				case "provider":
+					for _, p := range m.providers {
+						if p.ID == item.ProviderID {
+							m.selectedProvider = p
+							break
+						}
+					}
+					if len(selectableModels(m.selectedProvider)) > 0 {
+						m.mCursor = 0
+						m.state = StateModel
+					} else {
+						m.selectedModelID = ""
+						m.workdirInput.SetValue(currentPanePath())
+						m.workdirInput.Focus()
+						m.state = StateWorkdir
+					}
+				}
+
+			default:
+				var cmd tea.Cmd
+				m.searchInput, cmd = m.searchInput.Update(msg)
+				m.filteredItems = ApplyFuzzy(m.searchInput.Value(), m.allItems)
+				m.itemCursor = 0
+				return m, cmd
+			}
+			return m, nil
+		}
+
+		if m.state == StateProvider {
+			switch msg.String() {
+			case "ctrl+c":
+				m.quit = true
+				return m, tea.Quit
+
+			case "esc":
+				m.selectedItem = nil
+				m.state = StateSearch
+				m.searchInput.Focus()
+
+			case "j", "down":
+				if m.spCursor < len(m.skillProviders)-1 {
+					m.spCursor++
+				}
+
+			case "k", "up":
+				if m.spCursor > 0 {
+					m.spCursor--
+				}
+
+			case "enter":
+				if len(m.skillProviders) > 0 {
+					m.selectedProvider = m.skillProviders[m.spCursor]
+					m.selectedModelID = ""
+					m.workdirInput.SetValue(currentPanePath())
+					m.workdirInput.Focus()
+					m.state = StateWorkdir
+				}
+			}
+			return m, nil
+		}
+
 		// Workdir state handles keys independently.
 		if m.state == StateWorkdir {
 			switch msg.String() {
@@ -483,6 +607,11 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.workdirInput.Blur()
 				return m, nil
 			case "enter":
+				// Skills, agents, and pipelines bypass the OpenSpec workflow.
+				if m.selectedItem != nil {
+					m.doLaunch()
+					return m, tea.Quit
+				}
 				if !m.openspecAvailable {
 					m.doLaunch()
 					return m, tea.Quit
@@ -527,7 +656,8 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				if m.selectedSession != nil {
 					m.selectedSession = nil
-					m.state = StateProvider
+					m.state = StateSearch
+					m.searchInput.Focus()
 				} else {
 					m.workdirInput.Focus()
 					m.state = StateWorkdir
