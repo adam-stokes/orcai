@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package bridge;
+
+option go_package = "github.com/adam-stokes/orcai/proto/bridgepb";
+
+service ProviderBridge {
+  rpc Describe(DescribeRequest)         returns (DescribeResponse);
+  rpc Send(stream SendRequest)          returns (stream SendResponse);
+  rpc Shutdown(ShutdownRequest)         returns (ShutdownResponse);
+}
+
+message DescribeRequest {}
+
+message DescribeResponse {
+  string name    = 1;
+  string version = 2;
+  repeated Capability capabilities = 3;
+}
+
+message Capability {
+  string name   = 1;
+  string kind   = 2;
+  string inject = 3;
+}
+
+message SendRequest {
+  string prompt     = 1;
+  string session_id = 2;
+  string cwd        = 3;
+  string input      = 4;   // mid-stream user reply to a WaitingPayload
+  string model      = 5;
+}
+
+message WaitingPayload {
+  string hint = 1;   // partial prompt text from the subprocess, e.g. "[y/n] "
+}
+
+message SendResponse {
+  oneof payload {
+    string         chunk   = 1;
+    DonePayload    done    = 2;
+    string         error   = 3;
+    WaitingPayload waiting = 4;
+  }
+}
+
+message DonePayload {
+  string session_id     = 1;
+  string model          = 2;
+  int32  input_tokens   = 3;
+  int32  output_tokens  = 4;
+  int32  cache_tokens   = 5;
+  int32  context_window = 6;
+}
+
+message ShutdownRequest {}
+message ShutdownResponse {}

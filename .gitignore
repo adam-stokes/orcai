@@ -1,0 +1,28 @@
+# Build artifacts
+bin/
+build/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json
+frontend/package.json.md5
+
+# Compiled binary
+orcai
+
+# WASM
+assets/plugin.wasm
+*.wasm
+
+# Git worktrees
+.worktrees/
+
+# OS
+.DS_Store
+.env
+
+# Claude Code
+.claude/settings.local.json
+.claude/sessions/
+.claude/*.log
