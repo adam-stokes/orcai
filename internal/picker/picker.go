@@ -599,7 +599,18 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.quit = true
 				return m, tea.Quit
 			case "esc":
-				if len(m.selectedProvider.Models) > 0 {
+				if m.selectedItem != nil {
+					// pipeline, skill, or agent: return to the appropriate prior state.
+					if m.selectedItem.Kind == "pipeline" {
+						// No intermediate provider screen for pipelines — go back to search.
+						m.selectedItem = nil
+						m.state = StateSearch
+						m.searchInput.Focus()
+					} else {
+						// skill/agent: return to the provider picker.
+						m.state = StateProvider
+					}
+				} else if len(m.selectedProvider.Models) > 0 {
 					m.state = StateModel
 				} else {
 					m.state = StateProvider
