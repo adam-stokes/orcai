@@ -946,16 +946,34 @@ func (m pickerModel) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// doLaunch performs the session launch from pickerModel state and stores the
-// worktree path so Run() can pass it to opsx.ProviderSend.
+// doLaunch performs the session launch from pickerModel state.
+// For existing sessions, this is a no-op (focus already handled in Update).
+// For pipelines, opens a new tmux window running "orcai pipeline run <name>".
+// For skill/agent and raw provider launches, delegates to launchFrom.
 func (m *pickerModel) doLaunch() {
 	if m.selectedSession != nil {
-		return // existing session already focused; Run() handles ProviderSend
+		return // existing session already focused in Update
 	}
+
 	basePath := strings.TrimSpace(m.workdirInput.Value())
 	if basePath == "" {
 		basePath = currentPanePath()
 	}
+
+	// Pipeline: launch via the orcai pipeline subcommand in a new tmux window.
+	if m.selectedItem != nil && m.selectedItem.Kind == "pipeline" {
+		name := m.selectedItem.Name
+		windowName := "pipeline-" + name
+		self, err := os.Executable()
+		if err != nil {
+			return
+		}
+		exec.Command("tmux", "new-window", "-t", "orcai", "-n", windowName,
+			self, "pipeline", "run", name).Run() //nolint:errcheck
+		return
+	}
+
+	// Skill/agent and raw provider: launch the selected CLI in a new tmux window.
 	m.launchedWorktree = launchFrom(m.selectedProvider, m.selectedModelID, basePath)
 }
 
@@ -1019,7 +1037,18 @@ func launchFrom(p ProviderDef, modelID, basePath string) string {
 	return startDir
 }
 
-// Run displays the provider/model picker in a bubbletea program.
+// sendInjectText waits for the newly launched CLI to initialise, then sends
+// the inject text (e.g. "/golang-patterns" or "@beast-mode ") to the active
+// orcai tmux window. The 2-second delay mirrors the opsx.ProviderSend pattern.
+func sendInjectText(injectText string) {
+	if injectText == "" {
+		return
+	}
+	time.Sleep(2 * time.Second)
+	exec.Command("tmux", "send-keys", "-t", "orcai", injectText, "Enter").Run() //nolint:errcheck
+}
+
+// Run displays the unified fuzzy session picker in a bubbletea program.
 func Run() {
 	p := tea.NewProgram(newPickerModel(), tea.WithAltScreen())
 	result, err := p.Run()
@@ -1027,9 +1056,17 @@ func Run() {
 		fmt.Printf("picker error: %v\n", err)
 		return
 	}
-	// Run the OpenSpec propose workflow after the popup is fully closed, giving
-	// the newly launched CLI process time to initialise before receiving input.
-	if pm, ok := result.(pickerModel); ok && pm.openspecFeature != "" {
+	pm, ok := result.(pickerModel)
+	if !ok {
+		return
+	}
+	// OpenSpec workflow takes priority — it includes its own send delay.
+	if pm.openspecFeature != "" {
 		opsx.ProviderSend(pm.openspecFeature, pm.selectedProvider.ID, pm.launchedWorktree)
+		return
+	}
+	// Skill/agent launch: inject the slash command or @mention after the CLI starts.
+	if pm.selectedItem != nil && pm.selectedItem.InjectText != "" {
+		sendInjectText(pm.selectedItem.InjectText)
 	}
 }
