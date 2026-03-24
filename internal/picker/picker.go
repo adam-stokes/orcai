@@ -152,6 +152,22 @@ func buildProviders() []ProviderDef {
 	return out
 }
 
+// BuildProviders returns the runtime-filtered, model-enriched provider list,
+// excluding the shell provider (not relevant for pipeline steps).
+// Behaviour is identical to the session picker: filters by installed CLI,
+// injects Ollama models into ollama/opencode, creates ctx32k variants,
+// and writes the opencode config when applicable.
+func BuildProviders() []ProviderDef {
+	all := buildProviders()
+	out := make([]ProviderDef, 0, len(all))
+	for _, p := range all {
+		if p.ID != "shell" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // ensureOpencodeOllamaConfig writes (or merges) the ollama provider block into
 // ~/.config/opencode/opencode.json so opencode can reach local Ollama models.
 // The model ID format opencode expects is "ollama/<model-name>".

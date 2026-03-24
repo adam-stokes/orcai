@@ -147,6 +147,15 @@ func TestParseWindowList_FiltersWelcome(t *testing.T) {
 	}
 }
 
+func TestBuildProviders_ExcludesShell(t *testing.T) {
+	providers := picker.BuildProviders()
+	for _, p := range providers {
+		if p.ID == "shell" {
+			t.Fatal("BuildProviders must not include the shell provider")
+		}
+	}
+}
+
 func TestPickerStates_AllDistinct(t *testing.T) {
 	states := []picker.PickerState{
 		picker.StateSearch,
