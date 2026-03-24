@@ -25,6 +25,9 @@ steps:
   - id: step3a
     plugin: openspec
     input: "{{step2.out}}"
+  - id: step3b
+    plugin: openclaw
+    input: "{{step2.out}}"
   - id: output
     type: output
     publish_to: "pipeline.test-pipeline.done"
@@ -38,8 +41,8 @@ func TestLoad_Valid(t *testing.T) {
 	if p.Name != "test-pipeline" {
 		t.Errorf("expected name 'test-pipeline', got %q", p.Name)
 	}
-	if len(p.Steps) != 4 {
-		t.Errorf("expected 4 steps, got %d", len(p.Steps))
+	if len(p.Steps) != 5 {
+		t.Errorf("expected 5 steps, got %d", len(p.Steps))
 	}
 	if p.Steps[0].ID != "step1" {
 		t.Errorf("expected first step id 'step1', got %q", p.Steps[0].ID)

@@ -2,6 +2,8 @@ package promptbuilder
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -50,6 +52,14 @@ func (b *BubbleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.AddStep):
 			id := fmt.Sprintf("step%d", len(b.inner.Steps())+1)
 			b.inner.AddStep(pipeline.Step{ID: id, Plugin: "claude"})
+		case key.Matches(msg, keys.Save):
+			home, err := os.UserHomeDir()
+			if err == nil {
+				dir := filepath.Join(home, ".config", "orcai", "pipelines")
+				os.MkdirAll(dir, 0o755) //nolint:errcheck
+				path := filepath.Join(dir, b.inner.Name()+".pipeline.yaml")
+				Save(b.inner, path) //nolint:errcheck
+			}
 		}
 	}
 	return b, nil

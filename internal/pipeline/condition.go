@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -36,7 +35,6 @@ func EvalCondition(expr, output string) bool {
 		}
 		return len(output) > n
 	default:
-		fmt.Printf("pipeline: unknown condition %q — defaulting to false\n", expr)
 		return false
 	}
 }
