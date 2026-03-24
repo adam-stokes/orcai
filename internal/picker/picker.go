@@ -236,25 +236,6 @@ func injectOllamaModels(p ProviderDef, ollamaModels, opencodeModels []string) Pr
 
 // ── Worktree helpers ────────────────────────────────────────────────────────
 
-// currentPanePath returns the working directory of the active pane in the
-// orcai session. When the picker runs inside a display-popup its own pane's
-// path is always the orcai source tree, so we target the orcai session
-// explicitly to get the user's actual project directory.
-func currentPanePath() string {
-	// Try the orcai session's active window first.
-	out, err := exec.Command("tmux", "display-message", "-t", "orcai", "-p", "#{pane_current_path}").Output()
-	if err == nil {
-		if p := strings.TrimSpace(string(out)); p != "" {
-			return p
-		}
-	}
-	// Fall back to the popup's own pane path.
-	out, err = exec.Command("tmux", "display-message", "-p", "#{pane_current_path}").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
 
 // expandPath expands a leading ~ to the user's home directory.
 func expandPath(path string) string {
@@ -549,7 +530,7 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Quit
 
 				case "pipeline":
-					m.workdirInput.SetValue(currentPanePath())
+					m.workdirInput.SetValue("")
 					m.workdirInput.Focus()
 					m.state = StateWorkdir
 
@@ -569,7 +550,7 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.state = StateModel
 					} else {
 						m.selectedModelID = ""
-						m.workdirInput.SetValue(currentPanePath())
+						m.workdirInput.SetValue("")
 						m.workdirInput.Focus()
 						m.state = StateWorkdir
 					}
@@ -610,7 +591,7 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.skillProviders) > 0 {
 					m.selectedProvider = m.skillProviders[m.spCursor]
 					m.selectedModelID = ""
-					m.workdirInput.SetValue(currentPanePath())
+					m.workdirInput.SetValue("")
 					m.workdirInput.Focus()
 					m.state = StateWorkdir
 				}
@@ -778,7 +759,7 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Existing session selected: focus the window and go to workflow.
 					m.selectedSession = session
 					focusWindow(session.Index)
-					m.workdirInput.SetValue(currentPanePath())
+					m.workdirInput.SetValue("")
 					if !m.openspecAvailable {
 						return m, tea.Quit
 					}
@@ -793,7 +774,7 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Provider with no models: go straight to workdir.
 					m.selectedProvider = *provider
 					m.selectedModelID = ""
-					m.workdirInput.SetValue(currentPanePath())
+					m.workdirInput.SetValue("")
 					m.workdirInput.Focus()
 					m.state = StateWorkdir
 				}
@@ -802,7 +783,7 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// StateModel — m.selectedProvider is already set by the StateSearch enter handler.
 				modelID := selectableModels(m.selectedProvider)[m.mCursor].ID
 				m.selectedModelID = modelID
-				m.workdirInput.SetValue(currentPanePath())
+				m.workdirInput.SetValue("")
 				m.workdirInput.Focus()
 				m.state = StateWorkdir
 			}
@@ -1001,7 +982,10 @@ func (m *pickerModel) doLaunch() {
 
 	basePath := expandPath(strings.TrimSpace(m.workdirInput.Value()))
 	if basePath == "" {
-		basePath = currentPanePath()
+		home, err := os.UserHomeDir()
+		if err == nil {
+			basePath = home
+		}
 	}
 
 	// Pipeline: launch via the orcai pipeline subcommand in a new tmux window.
