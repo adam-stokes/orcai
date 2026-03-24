@@ -391,11 +391,12 @@ func focusWindow(index string) {
 type PickerState int
 
 const (
-	StateProvider    PickerState = iota
-	StateModel
-	StateWorkdir
-	StateWorkflow     // NEW
-	StateOpenSpecName // NEW
+	StateSearch       PickerState = iota // fuzzy list (initial state)
+	StateProvider                        // pick which CLI to run skill/agent with
+	StateModel                           // pick model for a provider
+	StateWorkdir                         // working directory input
+	StateWorkflow                        // fresh vs openspec choice
+	StateOpenSpecName                    // openspec feature name input
 )
 
 type pickerModel struct {

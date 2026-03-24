@@ -149,6 +149,7 @@ func TestParseWindowList_FiltersWelcome(t *testing.T) {
 
 func TestPickerStates_AllDistinct(t *testing.T) {
 	states := []picker.PickerState{
+		picker.StateSearch,
 		picker.StateProvider,
 		picker.StateModel,
 		picker.StateWorkdir,
