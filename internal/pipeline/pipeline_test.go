@@ -62,3 +62,28 @@ func TestLoad_MissingName(t *testing.T) {
 		t.Error("expected error when name is missing")
 	}
 }
+
+func TestInterpolate_Simple(t *testing.T) {
+	vars := map[string]string{"step1.out": "golang plugins"}
+	result := pipeline.Interpolate("Summarize: {{step1.out}}", vars)
+	if result != "Summarize: golang plugins" {
+		t.Errorf("got %q", result)
+	}
+}
+
+func TestInterpolate_Multiple(t *testing.T) {
+	vars := map[string]string{"a.out": "foo", "b.out": "bar"}
+	result := pipeline.Interpolate("{{a.out}} and {{b.out}}", vars)
+	if result != "foo and bar" {
+		t.Errorf("got %q", result)
+	}
+}
+
+func TestInterpolate_Missing(t *testing.T) {
+	vars := map[string]string{}
+	result := pipeline.Interpolate("hello {{missing.out}}", vars)
+	// Missing vars are left as-is.
+	if result != "hello {{missing.out}}" {
+		t.Errorf("got %q", result)
+	}
+}
