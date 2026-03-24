@@ -1,0 +1,53 @@
+syntax = "proto3";
+package orcai.v1;
+option go_package = "github.com/adam-stokes/orcai/proto/orcai/v1;orcaiv1";
+
+message Empty {}
+
+message PluginInfo {
+  string name               = 1;
+  string version            = 2;
+  string description        = 3;
+  repeated string capabilities = 4;
+}
+
+message StartRequest {
+  string bus_address = 1;
+}
+
+message StartResponse {}
+
+message StatusResponse {
+  string state   = 1;
+  string message = 2;
+}
+
+message ExecuteRequest {
+  string input             = 1;
+  map<string, string> vars = 2;
+}
+
+message ExecuteResponse {
+  string chunk = 1;
+  bool   done  = 2;
+  string error = 3;
+}
+
+message Capability {
+  string name          = 1;
+  string input_schema  = 2;
+  string output_schema = 3;
+}
+
+message CapabilityList {
+  repeated Capability items = 1;
+}
+
+service OrcaiPlugin {
+  rpc GetInfo(Empty)             returns (PluginInfo);
+  rpc Start(StartRequest)        returns (StartResponse);
+  rpc Stop(Empty)                returns (Empty);
+  rpc GetStatus(Empty)           returns (StatusResponse);
+  rpc Execute(ExecuteRequest)    returns (stream ExecuteResponse);
+  rpc Capabilities(Empty)        returns (CapabilityList);
+}
