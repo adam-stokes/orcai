@@ -236,9 +236,20 @@ func injectOllamaModels(p ProviderDef, ollamaModels, opencodeModels []string) Pr
 
 // ── Worktree helpers ────────────────────────────────────────────────────────
 
-// currentPanePath returns the filesystem path of the active tmux pane.
+// currentPanePath returns the working directory of the active pane in the
+// orcai session. When the picker runs inside a display-popup its own pane's
+// path is always the orcai source tree, so we target the orcai session
+// explicitly to get the user's actual project directory.
 func currentPanePath() string {
-	out, err := exec.Command("tmux", "display-message", "-p", "#{pane_current_path}").Output()
+	// Try the orcai session's active window first.
+	out, err := exec.Command("tmux", "display-message", "-t", "orcai", "-p", "#{pane_current_path}").Output()
+	if err == nil {
+		if p := strings.TrimSpace(string(out)); p != "" {
+			return p
+		}
+	}
+	// Fall back to the popup's own pane path.
+	out, err = exec.Command("tmux", "display-message", "-p", "#{pane_current_path}").Output()
 	if err != nil {
 		return ""
 	}
