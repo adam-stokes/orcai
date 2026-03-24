@@ -22,11 +22,16 @@ message StatusResponse {
   string message = 2;
 }
 
+// ExecuteRequest is a single invocation: send one request, receive a stream of chunks.
+// vars holds template variables available for interpolation within the plugin.
 message ExecuteRequest {
   string input             = 1;
   map<string, string> vars = 2;
 }
 
+// ExecuteResponse is one chunk of a streaming execution.
+// When done is true the stream is complete. error is only set on the final message
+// if the execution failed; a clean completion has done=true and error="".
 message ExecuteResponse {
   string chunk = 1;
   bool   done  = 2;
