@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/adam-stokes/orcai/internal/pipeline"
 	"github.com/adam-stokes/orcai/internal/plugin"
 )
 
@@ -17,9 +16,6 @@ func Run() {
 
 	m := New(mgr)
 	m.SetName("new-pipeline")
-	m.AddStep(pipeline.Step{ID: "input", Type: "input", Prompt: "Enter your prompt:"})
-	m.AddStep(pipeline.Step{ID: "step1", Plugin: "claude", Model: "claude-sonnet-4-6"})
-	m.AddStep(pipeline.Step{ID: "output", Type: "output"})
 
 	bubble := NewBubble(m)
 	p := tea.NewProgram(bubble, tea.WithAltScreen())
