@@ -3,22 +3,14 @@ package pipeline
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
 	"github.com/adam-stokes/orcai/internal/plugin"
-	pb "github.com/adam-stokes/orcai/proto/orcai/v1"
 )
 
 // stepStatus represents the lifecycle state of a step.
@@ -57,12 +49,6 @@ func Run(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput string
 		publisher = NoopPublisher{}
 	}
 
-	// Attempt bus connection (silent on failure).
-	busClient, busConn := connectBus()
-	if busConn != nil {
-		defer busConn.Close()
-	}
-
 	// Handle legacy sequential pipeline (no Needs used) plus input/output step types.
 	// If none of the steps has Needs, Retry, ForEach, or builtin types, fall through
 	// to the legacy runner for full backwards compatibility.
@@ -70,7 +56,7 @@ func Run(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput string
 		return runLegacy(ctx, p, mgr, userInput, publisher)
 	}
 
-	return runDAG(ctx, p, mgr, userInput, publisher, busClient)
+	return runDAG(ctx, p, mgr, userInput, publisher)
 }
 
 // isLegacyPipeline returns true if none of the steps use DAG-only features,
@@ -173,8 +159,8 @@ func runLegacy(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput 
 
 // runDAG executes a pipeline using the DAG execution engine with full parallelism,
 // retry, on_failure routing, and for_each expansion.
-func runDAG(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput string, publisher EventPublisher, busClient pb.EventBusClient) (string, error) {
-	_ = publisher // used via bus client
+func runDAG(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput string, publisher EventPublisher) (string, error) {
+	_ = publisher
 
 	maxParallel := p.MaxParallel
 	if maxParallel <= 0 {
@@ -303,13 +289,6 @@ func runDAG(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput str
 			defer wg.Done()
 			defer func() { <-semaphore }()
 
-			publishBusEvent(ctx, busClient, map[string]any{
-				"pipeline": p.Name,
-				"step":     id,
-				"status":   "started",
-			})
-			startTime := time.Now()
-
 			snap := ec.Snapshot()
 			args := interpolateArgs(step.Args, snap)
 			if itemVal, ok := args["_item"]; ok {
@@ -317,29 +296,8 @@ func runDAG(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput str
 			}
 
 			out, execErr := dispatchStep(ctx, step, args, snap, ec, mgr)
-			durMs := time.Since(startTime).Milliseconds()
 
-			if execErr != nil {
-				publishBusEvent(ctx, busClient, map[string]any{
-					"pipeline":    p.Name,
-					"step":        id,
-					"status":      "failed",
-					"duration_ms": durMs,
-					"error":       execErr.Error(),
-				})
-			} else {
-				publishBusEvent(ctx, busClient, map[string]any{
-					"pipeline":    p.Name,
-					"step":        id,
-					"status":      "done",
-					"duration_ms": durMs,
-					"output":      out,
-				})
-				if step.PublishTo != "" && busClient != nil {
-					if data, jsonErr := json.Marshal(out); jsonErr == nil {
-						publishRaw(ctx, busClient, step.PublishTo, data)
-					}
-				}
+			if execErr == nil {
 				if out != nil {
 					lastOutputMu.Lock()
 					if v, ok := out["value"]; ok {
@@ -776,57 +734,3 @@ func filterOut(ss []string, remove string) []string {
 	return out
 }
 
-// connectBus reads ~/.config/orcai/bus.addr and dials gRPC.
-// Returns nil, nil if unavailable.
-func connectBus() (pb.EventBusClient, *grpc.ClientConn) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, nil
-	}
-	data, err := os.ReadFile(filepath.Join(home, ".config", "orcai", "bus.addr"))
-	if err != nil || len(strings.TrimSpace(string(data))) == 0 {
-		return nil, nil
-	}
-	addr := strings.TrimSpace(string(data))
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Printf("[pipeline] bus unavailable at %s: %v", addr, err)
-		return nil, nil
-	}
-	return pb.NewEventBusClient(conn), conn
-}
-
-// publishBusEvent publishes a JSON event to the pipeline telemetry topics.
-func publishBusEvent(ctx context.Context, client pb.EventBusClient, payload map[string]any) {
-	if client == nil {
-		return
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return
-	}
-	topic := "orcai.pipeline.step.started"
-	if status, ok := payload["status"].(string); ok {
-		switch status {
-		case "done":
-			topic = "orcai.pipeline.step.done"
-		case "failed":
-			topic = "orcai.pipeline.step.failed"
-		}
-	}
-	publishRaw(ctx, client, topic, data)
-}
-
-// publishRaw sends raw bytes to a bus topic, ignoring errors.
-func publishRaw(ctx context.Context, client pb.EventBusClient, topic string, payload []byte) {
-	if client == nil {
-		return
-	}
-	pubCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	_, _ = client.Publish(pubCtx, &pb.Event{
-		Topic:   topic,
-		Source:  "pipeline",
-		Payload: payload,
-	})
-}

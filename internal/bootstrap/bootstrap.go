@@ -8,10 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/adam-stokes/orcai/internal/bus"
 	"github.com/adam-stokes/orcai/internal/busd"
-	"github.com/adam-stokes/orcai/internal/discovery"
-	"github.com/adam-stokes/orcai/internal/host"
 )
 
 // ErrReload is returned by Run when a reload was requested (marker file present).
@@ -168,31 +165,6 @@ func Run() error {
 		fmt.Fprintf(os.Stderr, "orcai: warning: could not start busd: %v\n", err)
 	} else {
 		defer busdSrv.Stop()
-	}
-
-	// Start the legacy gRPC event bus and load plugins.
-	busSrv := bus.New()
-	busAddr, err := busSrv.Listen("127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("starting event bus: %w", err)
-	}
-	defer busSrv.Stop()
-
-	// Persist bus address so sidebar and other out-of-process components can connect.
-	if err := os.WriteFile(filepath.Join(cfgDir, "bus.addr"), []byte(busAddr), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "orcai: warning: could not write bus.addr: %v\n", err)
-	}
-
-	plugins, err := discovery.Discover(cfgDir)
-	if err != nil {
-		return fmt.Errorf("discovering plugins: %w", err)
-	}
-	h := host.New(busAddr)
-	defer h.StopAll()
-	for _, p := range plugins {
-		if err := h.Load(p); err != nil {
-			fmt.Fprintf(os.Stderr, "orcai: failed to load plugin %q: %v\n", p.Name, err)
-		}
 	}
 
 	run := func(args ...string) error {

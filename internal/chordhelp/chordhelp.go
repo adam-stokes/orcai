@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/adam-stokes/orcai/internal/bootstrap"
-	"github.com/adam-stokes/orcai/sdk/styles"
+	"github.com/adam-stokes/orcai/internal/styles"
 )
 
 type helpState int

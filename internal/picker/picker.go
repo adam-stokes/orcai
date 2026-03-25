@@ -17,7 +17,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/adam-stokes/orcai/internal/opsx"
-	"github.com/adam-stokes/orcai/sdk/styles"
+	"github.com/adam-stokes/orcai/internal/styles"
 )
 
 // ModelOption is a selectable model within a provider.

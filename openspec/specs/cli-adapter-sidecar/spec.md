@@ -1,7 +1,7 @@
 ## Requirements
 
 ### Requirement: Sidecar YAML schema
-A sidecar file at `~/.config/orcai/wrappers/<name>.yaml` SHALL declare the CLI tool's name, description, command, optional args, and optional input/output schemas. All fields except `command` SHALL be optional.
+A sidecar file at `~/.config/orcai/wrappers/<name>.yaml` SHALL declare the CLI tool's name, description, command, optional args, and optional input/output schemas. All fields except `command` SHALL be optional. The sidecar MUST include a comment block documenting the calling convention: `input` is passed as stdin to the subprocess; `vars` entries are passed as environment variables prefixed with `ORCAI_`.
 
 #### Scenario: Minimal sidecar (command only)
 - **WHEN** a sidecar file contains only `command: echo`
@@ -40,3 +40,14 @@ A `CliAdapter` loaded from a sidecar SHALL return a `[]Capability` from `Capabil
 #### Scenario: Non-sidecar adapter unchanged
 - **WHEN** a `CliAdapter` is created via `NewCliAdapter`
 - **THEN** `adapter.Capabilities()` returns nil
+
+### Requirement: Plugin.Execute calling convention is documented
+The `plugin.Plugin` interface documentation SHALL state: `input` is the primary data payload (rendered prompt or stdin content); `vars` is a string metadata map passed as environment variables or flags — it is NOT a general key-value store for structured data. This distinction SHALL be documented in the interface definition and in `CLIAdapter`.
+
+#### Scenario: CLIAdapter passes input as stdin
+- **WHEN** `CLIAdapter.Execute` is called with `input = "hello"`
+- **THEN** the subprocess receives `"hello"` on its stdin
+
+#### Scenario: CLIAdapter passes vars as env
+- **WHEN** `CLIAdapter.Execute` is called with `vars = {"model": "sonnet"}`
+- **THEN** the subprocess environment contains `ORCAI_MODEL=sonnet`

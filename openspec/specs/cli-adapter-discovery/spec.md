@@ -1,7 +1,7 @@
 ## Requirements
 
 ### Requirement: Load wrappers from directory
-`LoadWrappers(dir string)` SHALL scan `dir` for `*.yaml` files, attempt to load each as a sidecar, and return the successfully loaded plugins. Files that fail to parse SHALL be skipped and their errors collected. The function SHALL return an empty slice (not an error) when `dir` does not exist.
+`LoadWrappers(dir string)` SHALL scan `dir` for `*.yaml` files, attempt to load each as a sidecar, and return the successfully loaded plugins. Files that fail to parse SHALL be skipped and their errors collected. The function SHALL return an empty slice (not an error) when `dir` does not exist. If a sidecar declares a `category` field, the plugin SHALL also be registered in the manager's category index under `<category>.<name>`.
 
 #### Scenario: Directory with valid sidecars
 - **WHEN** `LoadWrappers` is called on a directory containing two valid sidecar YAML files
@@ -19,6 +19,10 @@
 - **WHEN** a directory contains `.yaml` and `.txt` files
 - **THEN** only the `.yaml` files are processed
 
+#### Scenario: Sidecar with category registered in category index
+- **WHEN** a sidecar declares `category: providers` and `name: weather`
+- **THEN** the plugin is accessible via step type `providers.weather` in addition to `weather`
+
 ### Requirement: Manager loads and registers wrappers from directory
 `Manager.LoadWrappersFromDir(dir string)` SHALL call `LoadWrappers(dir)` and register all returned plugins. It SHALL return a non-nil error only if `LoadWrappers` itself encounters a non-skippable failure (e.g., permission denied on the directory itself). Individual sidecar parse failures SHALL be logged but SHALL NOT prevent other wrappers from being registered.
 
@@ -29,3 +33,14 @@
 #### Scenario: Empty directory registers nothing
 - **WHEN** `LoadWrappersFromDir` is called on an empty directory
 - **THEN** no plugins are registered and no error is returned
+
+### Requirement: Manager.Register returns error instead of panicking
+`Manager.Register(p Plugin) error` SHALL return a non-nil error if a plugin with the same name is already registered. It SHALL NOT panic. The caller is responsible for handling the error.
+
+#### Scenario: Duplicate registration returns error
+- **WHEN** `Register` is called twice with plugins of the same name
+- **THEN** the second call returns a non-nil error and the original registration is unchanged
+
+#### Scenario: Successful registration returns nil
+- **WHEN** `Register` is called with a plugin whose name is not yet registered
+- **THEN** it returns nil and the plugin is retrievable via `Get`

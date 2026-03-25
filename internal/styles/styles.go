@@ -1,4 +1,4 @@
-// Package styles provides Dracula-themed lipgloss styles for orcai plugin UIs.
+// Package styles provides Dracula-themed lipgloss styles for orcai UIs.
 package styles
 
 import "github.com/charmbracelet/lipgloss"

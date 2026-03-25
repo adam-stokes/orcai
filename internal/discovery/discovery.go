@@ -105,7 +105,7 @@ func scanPipelines(dir string) ([]Plugin, error) {
 	}
 	var plugins []Plugin
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".pipeline.yaml") {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".pipeline.yaml") || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
 		name := strings.TrimSuffix(e.Name(), ".pipeline.yaml")

@@ -1,8 +1,6 @@
 package sidebar
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,10 +10,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	pb "github.com/adam-stokes/orcai/proto/orcai/v1"
 )
 
 // Window represents a tmux window (excluding window 0).
@@ -106,7 +100,6 @@ type Model struct {
 	height   int
 	sessions map[string]SessionTelemetry // keyed by session_id
 	log      []logEntry                  // activity log, newest-first, capped at 12
-	busConn  *grpc.ClientConn
 }
 
 // NewWithWindows creates a Model with a fixed window list — used in tests.
@@ -131,92 +124,17 @@ func (m Model) nodeIndexFor(windowName string) int {
 	return 0
 }
 
-// busAddrPath returns the path to the bus address file.
-func busAddrPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config", "orcai", "bus.addr"), nil
-}
-
-// readBusAddr reads the bus address with up to 3 seconds of retry.
-func readBusAddr() string {
-	path, err := busAddrPath()
-	if err != nil {
-		return ""
-	}
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		data, err := os.ReadFile(path)
-		if err == nil && len(data) > 0 {
-			return strings.TrimSpace(string(data))
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
-	return ""
-}
-
-// subscribeCmd connects to the bus and returns a tea.Cmd that emits TelemetryMsg values.
-func subscribeCmd(conn *grpc.ClientConn) tea.Cmd {
-	return func() tea.Msg {
-		client := pb.NewEventBusClient(conn)
-		stream, err := client.Subscribe(context.Background(), &pb.SubscribeRequest{
-			Topics: []string{"orcai.telemetry"},
-		})
-		if err != nil {
-			return nil
-		}
-		evt, err := stream.Recv()
-		if err != nil {
-			return nil
-		}
-		var payload struct {
-			SessionID    string  `json:"session_id"`
-			WindowName   string  `json:"window_name"`
-			Provider     string  `json:"provider"`
-			Status       string  `json:"status"`
-			InputTokens  int     `json:"input_tokens"`
-			OutputTokens int     `json:"output_tokens"`
-			CostUSD      float64 `json:"cost_usd"`
-		}
-		if err := json.Unmarshal([]byte(evt.Payload), &payload); err != nil {
-			return nil
-		}
-		return TelemetryMsg{
-			SessionID:    payload.SessionID,
-			WindowName:   payload.WindowName,
-			Provider:     payload.Provider,
-			Status:       payload.Status,
-			InputTokens:  payload.InputTokens,
-			OutputTokens: payload.OutputTokens,
-			CostUSD:      payload.CostUSD,
-		}
-	}
-}
-
-// New creates the sidebar model and connects to the event bus if available.
+// New creates the sidebar model.
 func New() Model {
-	m := Model{
+	return Model{
 		windows:  listWindows(),
 		sessions: make(map[string]SessionTelemetry),
 		log:      []logEntry{},
 	}
-	if addr := readBusAddr(); addr != "" {
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err == nil {
-			m.busConn = conn
-		}
-	}
-	return m
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tickCmd()}
-	if m.busConn != nil {
-		cmds = append(cmds, subscribeCmd(m.busConn))
-	}
-	return tea.Batch(cmds...)
+	return tickCmd()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -243,11 +161,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.log) > 12 {
 			m.log = m.log[:12]
 		}
-		var next tea.Cmd
-		if m.busConn != nil {
-			next = subscribeCmd(m.busConn)
-		}
-		return m, next
+		return m, nil
 
 	case tickMsg:
 		m.windows = listWindows()
@@ -273,9 +187,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
-			if m.busConn != nil {
-				m.busConn.Close() //nolint:errcheck
-			}
 			return m, tea.Quit
 
 		case "j", "down":

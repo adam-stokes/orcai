@@ -14,7 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/adam-stokes/orcai/sdk/styles"
+	"github.com/adam-stokes/orcai/internal/styles"
 )
 
 // providerDef holds OpenSpec configuration for a single orcai provider.
