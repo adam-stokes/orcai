@@ -162,19 +162,29 @@ func buildHelp(width int, p palette) string {
 // ── BubbleTea model ────────────────────────────────────────────────────────────
 
 type model struct {
-	width   int
-	height  int
-	self    string
-	palette palette
+	width        int
+	height       int
+	self         string
+	palette      palette
+	launchPicker bool
 }
 
-func newModel() model {
+// resolvePickerBin returns the path to the orcai-picker binary.
+// It checks PATH first, then falls back to the same directory as orcai-welcome.
+func resolvePickerBin() string {
+	if bin, err := exec.LookPath("orcai-picker"); err == nil {
+		return bin
+	}
 	self, _ := os.Executable()
 	if resolved, err := filepath.EvalSymlinks(self); err == nil {
 		self = resolved
 	}
+	return filepath.Join(filepath.Dir(self), "orcai-picker")
+}
+
+func newModel() model {
 	return model{
-		self:    self,
+		self:    resolvePickerBin(),
 		palette: absDefaults(),
 	}
 }
@@ -190,15 +200,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.palette = paletteForTheme(msg.ThemeName)
 	case tea.KeyMsg:
 		if msg.String() == "enter" && m.self != "" {
-			self := m.self
-			return m, tea.Batch(
-				func() tea.Msg {
-					exec.Command("tmux", "display-popup", "-E",
-						"-w", "120", "-h", "40", self, "_picker").Run() //nolint:errcheck
-					return nil
-				},
-				tea.Quit,
-			)
+			m.launchPicker = true
 		}
 		return m, tea.Quit
 	}
@@ -277,8 +279,13 @@ func main() {
 		defer conn.Close()
 	}
 
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "orcai-welcome: %v\n", err)
+	}
+
+	if m, ok := finalModel.(model); ok && m.launchPicker && m.self != "" {
+		exec.Command("tmux", "display-popup", "-E", "-w", "120", "-h", "40", m.self).Run() //nolint:errcheck
 	}
 
 	execShell()

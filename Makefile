@@ -1,8 +1,6 @@
 BINARY := orcai
-PROTO_DIR := proto/orcai/v1
-PROTO_OUT := proto/orcai/v1
 
-.PHONY: proto build run test clean debug-build debug debug-connect debug-tmux
+.PHONY: build run test clean debug-build debug debug-connect debug-tmux
 
 all: build run
 
@@ -10,23 +8,17 @@ run: build
 	-tmux kill-session -t orcai 2>/dev/null
 	bin/$(BINARY)
 
-proto:
-	PATH="$$PATH:$$(go env GOPATH)/bin" protoc \
-		--go_out=$(PROTO_OUT) --go_opt=paths=source_relative \
-		--go-grpc_out=$(PROTO_OUT) --go-grpc_opt=paths=source_relative \
-		-I proto/orcai/v1 \
-		-I /opt/homebrew/include \
-		proto/orcai/v1/plugin.proto \
-		proto/orcai/v1/bus.proto
-
 build:
 	go build -o bin/$(BINARY) .
+	go build -o bin/orcai-welcome ./cmd/orcai-welcome/
+	go build -o bin/orcai-picker ./cmd/orcai-picker/
+	go build -o bin/orcai-sysop ./cmd/orcai-sysop/
 
 test:
 	go test ./...
 
 clean:
-	rm -f bin/$(BINARY) bin/$(BINARY)-debug
+	rm -f bin/$(BINARY) bin/$(BINARY)-debug bin/orcai-welcome bin/orcai-picker bin/orcai-sysop
 
 debug-build:
 	go build -gcflags="all=-N -l" -o bin/$(BINARY)-debug .
