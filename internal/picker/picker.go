@@ -16,6 +16,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/adam-stokes/orcai/internal/discovery"
 	"github.com/adam-stokes/orcai/internal/opsx"
 	"github.com/adam-stokes/orcai/internal/styles"
 )
@@ -49,12 +50,6 @@ var Providers = []ProviderDef{
 	{ID: "copilot", Label: "GitHub Copilot"},
 	{ID: "ollama", Label: "Ollama"},
 	{ID: "shell", Label: "Shell"},
-}
-
-// isInstalled reports whether cmd exists in PATH.
-func isInstalled(cmd string) bool {
-	_, err := exec.LookPath(cmd)
-	return err == nil
 }
 
 // queryOllamaModels calls the local Ollama API and returns model names.
@@ -128,27 +123,67 @@ func ensureContextWindows(models []string) []string {
 	return result
 }
 
-// buildProviders returns a filtered, runtime-enriched provider list:
-//   - only includes providers whose CLI is installed (shell always included)
+// buildProviders returns a filtered, runtime-enriched provider list driven by
+// the plugin Manager/discovery layer:
+//   - only includes providers found via discovery (native plugins + CLI wrappers)
+//   - falls back to PATH check for ollama (not in bundled registry)
+//   - shell is always included
 //   - injects discovered Ollama models into the ollama and opencode providers
+//   - appends any native plugins not in the static Providers list
 func buildProviders() []ProviderDef {
 	ollamaModels := queryOllamaModels()
 
+	// Discover available plugins (native gRPC plugins + CLI wrappers; skip pipelines).
+	// discovery.Discover uses providers.Registry which checks binary existence via PATH.
+	discovered := make(map[string]bool)
+	var nativeExtras []string // native plugins not in the static Providers list
+
+	if configDir := orcaiConfigDir(); configDir != "" {
+		if plugins, err := discovery.Discover(configDir); err == nil {
+			for _, p := range plugins {
+				if p.Type == discovery.TypePipeline {
+					continue
+				}
+				discovered[p.Name] = true
+				if p.Type == discovery.TypeNative {
+					nativeExtras = append(nativeExtras, p.Name)
+				}
+			}
+		}
+	}
+
 	// For opencode, create ctx32k variants so agentic tasks have enough context.
 	var opencodeModels []string
-	if len(ollamaModels) > 0 && isInstalled("opencode") {
+	if len(ollamaModels) > 0 && discovered["opencode"] {
 		opencodeModels = ensureContextWindows(ollamaModels)
 		ensureOpencodeOllamaConfig(opencodeModels)
 	}
 
 	var out []ProviderDef
 	for _, p := range Providers {
-		if p.ID != "shell" && !isInstalled(p.ID) {
-			continue
+		switch {
+		case p.ID == "shell":
+			// shell is always available — no binary to check
+		default:
+			if !discovered[p.ID] {
+				continue
+			}
 		}
 		p = injectOllamaModels(p, ollamaModels, opencodeModels)
 		out = append(out, p)
 	}
+
+	// Append native gRPC plugins that are not in the static Providers list.
+	staticIDs := make(map[string]bool, len(Providers))
+	for _, p := range Providers {
+		staticIDs[p.ID] = true
+	}
+	for _, name := range nativeExtras {
+		if !staticIDs[name] {
+			out = append(out, ProviderDef{ID: name, Label: name})
+		}
+	}
+
 	return out
 }
 
@@ -166,6 +201,19 @@ func BuildProviders() []ProviderDef {
 		}
 	}
 	return out
+}
+
+// pipelineLaunchArgs maps provider IDs to the extra CLI flags needed to invoke
+// them in non-interactive (pipeline) mode.
+var pipelineLaunchArgs = map[string][]string{
+	"claude": {"--print"},
+}
+
+// PipelineLaunchArgs returns the fixed CLI args to prepend when a provider is
+// invoked as a non-interactive pipeline executor (e.g. --print for claude).
+// Returns nil if no extra args are required for the given provider.
+func PipelineLaunchArgs(providerID string) []string {
+	return pipelineLaunchArgs[providerID]
 }
 
 // ensureOpencodeOllamaConfig writes (or merges) the ollama provider block into
@@ -1201,7 +1249,8 @@ func (m *pickerModel) doLaunch() {
 		}
 	}
 
-	// Pipeline: launch via the orcai pipeline subcommand in a new tmux window.
+	// Pipeline: open a new tmux window running "orcai pipeline run <arg>" and
+	// keep the shell alive after the pipeline completes so the user can review output.
 	if m.selectedItem != nil && m.selectedItem.Kind == "pipeline" {
 		name := m.selectedItem.Name
 		windowName := "pipeline-" + name
@@ -1209,8 +1258,15 @@ func (m *pickerModel) doLaunch() {
 		if err != nil {
 			return
 		}
-		exec.Command("tmux", "new-window", "-t", "orcai", "-n", windowName,
-			self, "pipeline", "run", name).Run() //nolint:errcheck
+		// Prefer the absolute file path when available (supports pipelines outside
+		// the default directory). pipelineRunCmd accepts both names and file paths.
+		arg := name
+		if m.selectedItem.PipelineFile != "" {
+			arg = m.selectedItem.PipelineFile
+		}
+		// Wrap in a shell so the window remains open after the pipeline exits.
+		shellCmd := fmt.Sprintf("%s pipeline run %s; exec $SHELL", self, arg)
+		exec.Command("tmux", "new-window", "-t", "orcai", "-n", windowName, shellCmd).Run() //nolint:errcheck
 		return
 	}
 
@@ -1293,6 +1349,16 @@ func sendInjectText(injectText string) {
 	exec.Command("tmux", "send-keys", "-t", "orcai", injectText, "Enter").Run() //nolint:errcheck
 }
 
+// exportSelection serialises item to JSON and writes it to the ORCAI_PICKER_SELECTION
+// tmux global environment variable so external tools (e.g. orcai new) can read it.
+func exportSelection(item PickerItem) {
+	data, err := json.Marshal(item)
+	if err != nil {
+		return
+	}
+	exec.Command("tmux", "setenv", "-g", "ORCAI_PICKER_SELECTION", string(data)).Run() //nolint:errcheck
+}
+
 // Run displays the unified fuzzy session picker in a bubbletea program.
 func Run() {
 	p := tea.NewProgram(newPickerModel(), tea.WithAltScreen())
@@ -1309,6 +1375,17 @@ func Run() {
 	if pm.openspecFeature != "" {
 		opsx.ProviderSend(pm.openspecFeature, pm.selectedProvider.ID, pm.launchedWorktree)
 		return
+	}
+	// Export the selection to ORCAI_PICKER_SELECTION for external tools.
+	if pm.selectedItem != nil {
+		exportSelection(*pm.selectedItem)
+	} else if pm.selectedProvider.ID != "" {
+		exportSelection(PickerItem{
+			Kind:       "provider",
+			Name:       pm.selectedProvider.Label,
+			ProviderID: pm.selectedProvider.ID,
+			ModelID:    pm.selectedModelID,
+		})
 	}
 	// Skill/agent launch: inject the slash command or @mention after the CLI starts.
 	if pm.selectedItem != nil && pm.selectedItem.InjectText != "" {

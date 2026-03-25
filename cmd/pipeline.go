@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -33,7 +34,8 @@ var pipelineBuildCmd = &cobra.Command{
 
 		mgr := plugin.NewManager()
 		for _, prov := range providers {
-			mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", prov.ID))
+			args := picker.PipelineLaunchArgs(prov.ID)
+			mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", prov.ID, args...))
 		}
 
 		m := promptbuilder.New(mgr)
@@ -52,20 +54,28 @@ var pipelineBuildCmd = &cobra.Command{
 }
 
 var pipelineRunCmd = &cobra.Command{
-	Use:   "run <name>",
-	Short: "Run a saved pipeline by name",
+	Use:   "run <name|file>",
+	Short: "Run a saved pipeline by name or file path",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-		configDir, err := orcaiConfigDir()
-		if err != nil {
-			return err
+		arg := args[0]
+
+		// Accept either an absolute/relative file path or a bare name.
+		// If the arg contains a path separator or ends in .yaml, treat it as a file path.
+		var yamlPath string
+		if strings.Contains(arg, string(filepath.Separator)) || strings.HasSuffix(arg, ".yaml") {
+			yamlPath = arg
+		} else {
+			configDir, err := orcaiConfigDir()
+			if err != nil {
+				return err
+			}
+			yamlPath = filepath.Join(configDir, "pipelines", arg+".pipeline.yaml")
 		}
 
-		yamlPath := filepath.Join(configDir, "pipelines", name+".pipeline.yaml")
 		f, err := os.Open(yamlPath)
 		if err != nil {
-			return fmt.Errorf("pipeline %q not found: %w", name, err)
+			return fmt.Errorf("pipeline %q not found: %w", arg, err)
 		}
 		defer f.Close()
 
@@ -77,7 +87,8 @@ var pipelineRunCmd = &cobra.Command{
 		runProviders := picker.BuildProviders()
 		mgr := plugin.NewManager()
 		for _, prov := range runProviders {
-			if err := mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", prov.ID)); err != nil {
+			args := picker.PipelineLaunchArgs(prov.ID)
+			if err := mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", prov.ID, args...)); err != nil {
 				fmt.Fprintf(os.Stderr, "pipeline: register provider %q: %v\n", prov.ID, err)
 			}
 		}

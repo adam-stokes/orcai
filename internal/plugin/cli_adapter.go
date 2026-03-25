@@ -78,10 +78,14 @@ func (c *CliAdapter) Close() error               { return nil }
 func (c *CliAdapter) Category() string { return c.category }
 
 // Execute spawns the subprocess, writes input to stdin, and streams stdout to w.
-// vars is accepted for interface compatibility but is not passed to the subprocess;
-// use sidecar YAML args for fixed flags.
-func (c *CliAdapter) Execute(ctx context.Context, input string, _ map[string]string, w io.Writer) error {
-	cmd := exec.CommandContext(ctx, c.cmd, c.args...)
+// If vars contains a non-empty "model" key, "--model <value>" is appended to the
+// command arguments so AI provider CLIs receive the correct model at execution time.
+func (c *CliAdapter) Execute(ctx context.Context, input string, vars map[string]string, w io.Writer) error {
+	args := c.args
+	if model := vars["model"]; model != "" {
+		args = append(append([]string{}, args...), "--model", model)
+	}
+	cmd := exec.CommandContext(ctx, c.cmd, args...)
 	cmd.Stdin = strings.NewReader(input)
 	cmd.Stdout = w
 	cmd.Stderr = w

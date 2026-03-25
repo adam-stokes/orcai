@@ -1,6 +1,7 @@
 package picker
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -76,9 +77,21 @@ func orcaiConfigDir() string {
 	return filepath.Join(home, ".config", "orcai")
 }
 
+// MarshalPickerItem serialises item to JSON bytes for use in ORCAI_PICKER_SELECTION.
+func MarshalPickerItem(item PickerItem) ([]byte, error) {
+	return json.Marshal(item)
+}
+
+// UnmarshalPickerItem deserialises a PickerItem from JSON bytes.
+func UnmarshalPickerItem(data []byte) (PickerItem, error) {
+	var item PickerItem
+	err := json.Unmarshal(data, &item)
+	return item, err
+}
+
 // BuildPickerItems assembles all session-starter items in display group order:
-// sessions → pipelines → skills → agents → providers.
-// cwd and homeDir are passed to chatui.ScanIndex to locate skills and agents.
+// sessions → pipelines → agents → providers.
+// cwd and homeDir are passed to chatui.ScanIndex to locate agents.
 func BuildPickerItems(sessions []WindowEntry, providers []ProviderDef, cwd, homeDir string) []PickerItem {
 	var items []PickerItem
 
@@ -109,10 +122,10 @@ func BuildPickerItems(sessions []WindowEntry, providers []ProviderDef, cwd, home
 		}
 	}
 
-	// ── skills + agents ──
+	// ── agents only (skills are managed inside provider sessions, not launched from here) ──
 	index := chatui.ScanIndex(cwd, homeDir)
 	for _, e := range index {
-		if e.Kind != "skill" && e.Kind != "agent" {
+		if e.Kind != "agent" {
 			continue
 		}
 		items = append(items, PickerItem{

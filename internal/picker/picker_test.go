@@ -156,6 +156,60 @@ func TestBuildProviders_ExcludesShell(t *testing.T) {
 	}
 }
 
+// TestBuildPickerItems_PipelineCarriesFileField verifies that pipeline PickerItems
+// built by BuildPickerItems always have their PipelineFile field set.
+func TestBuildPickerItems_PipelineCarriesFileField(t *testing.T) {
+	items := picker.BuildPickerItems(nil, nil, "", "")
+	for _, item := range items {
+		if item.Kind == "pipeline" && item.PipelineFile == "" {
+			t.Errorf("pipeline item %q has empty PipelineFile", item.Name)
+		}
+	}
+}
+
+// TestPickerItem_JSONRoundTrip ensures PickerItem marshals and unmarshals cleanly
+// so that ORCAI_PICKER_SELECTION encoding works correctly.
+func TestPickerItem_JSONRoundTrip(t *testing.T) {
+	original := picker.PickerItem{
+		Kind:         "provider",
+		Name:         "Claude",
+		ProviderID:   "claude",
+		ModelID:      "claude-sonnet-4-6",
+		PipelineFile: "",
+	}
+	data, err := picker.MarshalPickerItem(original)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got, err := picker.UnmarshalPickerItem(data)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Kind != original.Kind || got.ProviderID != original.ProviderID || got.ModelID != original.ModelID {
+		t.Errorf("round-trip mismatch: got %+v, want %+v", got, original)
+	}
+}
+
+// TestPickerItem_PipelineJSONRoundTrip ensures pipeline items survive JSON round-trip.
+func TestPickerItem_PipelineJSONRoundTrip(t *testing.T) {
+	original := picker.PickerItem{
+		Kind:         "pipeline",
+		Name:         "my-pipeline",
+		PipelineFile: "/home/user/.config/orcai/pipelines/my-pipeline.pipeline.yaml",
+	}
+	data, err := picker.MarshalPickerItem(original)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got, err := picker.UnmarshalPickerItem(data)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.PipelineFile != original.PipelineFile {
+		t.Errorf("PipelineFile mismatch: got %q, want %q", got.PipelineFile, original.PipelineFile)
+	}
+}
+
 func TestPickerStates_AllDistinct(t *testing.T) {
 	states := []picker.PickerState{
 		picker.StateSearch,
