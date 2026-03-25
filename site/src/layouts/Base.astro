@@ -1,0 +1,23 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'orcai: Go BubbleTea TUI, tmux session manager, AI workspace with plugin support and prompt pipeline builder.' } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title === 'Home' ? 'ORCAI BBS — AI Workspace for Hackers' : `${title} — ORCAI BBS`}</title>
+  <meta name="description" content={description} />
+  <link rel="stylesheet" href="/orcai/css/bbs.css" />
+</head>
+<body>
+  <canvas id="hexbg"></canvas>
+  <slot />
+  <script src="/orcai/js/bbs.js"></script>
+</body>
+</html>
