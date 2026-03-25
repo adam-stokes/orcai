@@ -131,6 +131,50 @@ func TestDiscover_SkipsFiles(t *testing.T) {
 	}
 }
 
+// TestResolveOverride_UsesOverrideBinary verifies that when an orcai-<name>
+// binary is present on PATH, ResolveOverride returns it instead of the
+// manifest binary.
+func TestResolveOverride_UsesOverrideBinary(t *testing.T) {
+	// Create a temp dir with a fake orcai-weather executable.
+	tmpDir := t.TempDir()
+	overridePath := filepath.Join(tmpDir, "orcai-weather")
+	if err := os.WriteFile(overridePath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write fake override: %v", err)
+	}
+
+	origPath := os.Getenv("PATH")
+	os.Setenv("PATH", tmpDir+string(os.PathListSeparator)+origPath)
+	defer os.Setenv("PATH", origPath)
+
+	m := widgets.Manifest{
+		Name:   "weather",
+		Binary: "/usr/local/bin/orcai-weather-manifest",
+	}
+
+	got := widgets.ResolveOverride(m)
+	if got != overridePath {
+		t.Errorf("ResolveOverride = %q; want %q", got, overridePath)
+	}
+}
+
+// TestResolveOverride_FallsBackToManifest verifies that when no orcai-<name>
+// override exists in PATH, ResolveOverride returns the manifest's Binary.
+func TestResolveOverride_FallsBackToManifest(t *testing.T) {
+	origPath := os.Getenv("PATH")
+	os.Setenv("PATH", "")
+	defer os.Setenv("PATH", origPath)
+
+	m := widgets.Manifest{
+		Name:   "nonexistent-widget-xyz",
+		Binary: "/some/manifest/binary",
+	}
+
+	got := widgets.ResolveOverride(m)
+	if got != m.Binary {
+		t.Errorf("ResolveOverride = %q; want %q", got, m.Binary)
+	}
+}
+
 // TestLaunch_BadBinary verifies that Launch handles missing binaries gracefully.
 // Since tmux new-window itself succeeds even with a nonexistent binary (the
 // window opens and the shell reports the error), we focus on two things:

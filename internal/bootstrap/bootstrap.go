@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,9 @@ import (
 	"path/filepath"
 
 	"github.com/adam-stokes/orcai/internal/busd"
+	"github.com/adam-stokes/orcai/internal/keybindings"
+	"github.com/adam-stokes/orcai/internal/layout"
+	"github.com/adam-stokes/orcai/internal/widgetdispatch"
 )
 
 // ErrReload is returned by Run when a reload was requested (marker file present).
@@ -124,6 +128,30 @@ func WriteTmuxConf(cfgDir, self string) (string, error) {
 	return confPath, nil
 }
 
+// applyConfigs loads layout.yaml and keybindings.yaml from cfgDir and applies
+// them. Missing files are silently ignored (no-op). Errors are logged as
+// warnings but do not abort startup.
+func applyConfigs(cfgDir string) {
+	layoutCfg, err := layout.LoadConfig(filepath.Join(cfgDir, "layout.yaml"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "orcai: warning: load layout config: %v\n", err)
+	} else if len(layoutCfg.Panes) > 0 {
+		d := widgetdispatch.DefaultDispatcher{}
+		if err := layout.Apply(context.Background(), layoutCfg, d); err != nil {
+			fmt.Fprintf(os.Stderr, "orcai: warning: apply layout: %v\n", err)
+		}
+	}
+
+	kbCfg, err := keybindings.LoadConfig(filepath.Join(cfgDir, "keybindings.yaml"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "orcai: warning: load keybindings config: %v\n", err)
+	} else if len(kbCfg.Bindings) > 0 {
+		if err := keybindings.Apply(kbCfg); err != nil {
+			fmt.Fprintf(os.Stderr, "orcai: warning: apply keybindings: %v\n", err)
+		}
+	}
+}
+
 // Run is the main entrypoint: reconnect to an existing session or create a new one.
 func Run() error {
 	if !HasTmux() {
@@ -159,6 +187,7 @@ func Run() error {
 
 	// Fast path: session already running (e.g. after detach) — just reattach.
 	if SessionExists(SessionName) {
+		applyConfigs(cfgDir)
 		cmd := exec.Command("tmux", "-f", confPath, "attach-session", "-t", SessionName)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -190,6 +219,7 @@ func Run() error {
 	}
 	run("source-file", confPath) //nolint:errcheck
 	// Sidebar is hidden by default; use ctrl+; t to toggle it.
+	applyConfigs(cfgDir)
 
 	cmd := exec.Command("tmux", "-f", confPath, "attach-session", "-t", SessionName)
 	cmd.Stdin = os.Stdin
