@@ -1,0 +1,62 @@
+---
+import BBS from '../layouts/BBS.astro';
+
+const ansiArt = ` ██████╗ ██████╗  ██████╗ █████╗ ██╗
+██╔═══██╗██╔══██╗██╔════╝██╔══██╗██║
+██║   ██║██████╔╝██║     ███████║██║
+██║   ██║██╔══██╗██║     ██╔══██╗██║
+╚██████╔╝██║  ██╗╚██████╗██║  ██║██║
+ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝`;
+
+const installCode = `# Copy any .ans file to override the default welcome screen
+mkdir -p ~/.config/orcai/ui/
+cp mytheme.ans ~/.config/orcai/ui/welcome.ans
+# Restart orcai to see changes`;
+---
+<BBS title="Themes" activePage="themes">
+  <div class="content content-padded" style="position:relative;z-index:1">
+    <h2 class="section-header">// ANSI Themes //</h2>
+    <p class="fg-comment" style="font-size:12px;margin-bottom:8px">
+      Custom ANSI art for orcai's welcome screen. Drop a <code>.ans</code> file into
+      <code>~/.config/orcai/ui/welcome.ans</code> to override the default.
+    </p>
+    <p style="font-size:12px;margin-bottom:32px">
+      <a href="https://github.com/adam-stokes/orcai/issues/new?template=theme-submission.md" target="_blank" rel="noopener">Submit a theme &rarr;</a>
+    </p>
+
+    <div class="theme-grid">
+      <div class="theme-card">
+        <div class="theme-preview">
+          <pre class="ansi-art" style="font-size:8px;line-height:1.1" set:text={ansiArt} />
+        </div>
+        <div class="theme-meta">
+          <span class="fg-purple">default</span>
+          <span class="fg-comment">by orcai team</span>
+        </div>
+      </div>
+
+      <a href="https://github.com/adam-stokes/orcai/issues/new?template=theme-submission.md"
+         class="theme-card theme-submit" target="_blank" rel="noopener">
+        <div class="theme-preview theme-preview-empty">
+          <span class="fg-comment">+ SUBMIT THEME</span>
+        </div>
+        <div class="theme-meta">
+          <span class="fg-comment">your art here</span>
+        </div>
+      </a>
+    </div>
+
+    <h3 class="section-header" style="margin-top:48px;font-size:18px">// How To Install //</h3>
+    <pre class="code-block" set:text={installCode} />
+  </div>
+</BBS>
+
+<style>
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.theme-card { border: 1px solid var(--selbg); padding: 0; overflow: hidden; text-decoration: none; display: block; transition: border-color 0.15s; }
+.theme-card:hover { border-color: var(--purple); }
+.theme-preview { background: var(--darkbg); padding: 16px; min-height: 100px; display: flex; align-items: center; justify-content: center; }
+.theme-preview-empty { border: 1px dashed var(--selbg); margin: 8px; font-size: 13px; letter-spacing: 2px; }
+.theme-meta { padding: 8px 12px; display: flex; justify-content: space-between; font-size: 11px; border-top: 1px solid var(--selbg); }
+.ansi-art { color: var(--purple); margin: 0; font-family: 'JetBrains Mono', monospace; }
+</style>
