@@ -1,0 +1,32 @@
+---
+interface Props {
+  activePage: string;
+}
+const { activePage } = Astro.props;
+
+const navItems = [
+  { label: 'ORCAI BBS', href: '/orcai/', key: 'index', brand: true },
+  { label: 'Getting Started', href: '/orcai/getting-started', key: 'getting-started' },
+  { label: 'Plugins', href: '/orcai/plugins', key: 'plugins' },
+  { label: 'Pipelines', href: '/orcai/pipelines', key: 'pipelines' },
+  { label: 'Changelog', href: '/orcai/changelog', key: 'changelog' },
+  { label: 'GitHub', href: 'https://github.com/adam-stokes/orcai', key: 'github', external: true },
+];
+---
+<nav class="bbs-nav" aria-label="Main navigation">
+  <div class="bbs-nav-inner">
+    {navItems.map((item, i) => (
+      <>
+        {i > 0 && <span class="sep">&nbsp;·&nbsp;</span>}
+        <a
+          href={item.href}
+          class={[item.brand ? 'nav-brand' : '', activePage === item.key ? 'active' : ''].filter(Boolean).join(' ')}
+          {...item.external ? { target: '_blank', rel: 'noopener' } : {}}
+        >{item.label}</a>
+      </>
+    ))}
+  </div>
+  <div class="node-status">
+    NODE-001 &nbsp;|&nbsp; <span class="online">&#11044; ONLINE</span> &nbsp;|&nbsp; <span class="clock"></span>
+  </div>
+</nav>
