@@ -1,46 +1,33 @@
 ---
-import BBS from '../layouts/BBS.astro';
-import SysinfoBox from '../components/SysinfoBox.astro';
-import FeatureCard from '../components/FeatureCard.astro';
-import AnsiLogo from '../components/AnsiLogo.astro';
+import TerminalShell from '../layouts/TerminalShell.astro';
+import HomeScreen from '../components/screens/HomeScreen.astro';
+import AboutScreen from '../components/screens/AboutScreen.astro';
+import GettingStartedScreen from '../components/screens/GettingStartedScreen.astro';
+import PluginsScreen from '../components/screens/PluginsScreen.astro';
+import PipelinesScreen from '../components/screens/PipelinesScreen.astro';
+import ChangelogScreen from '../components/screens/ChangelogScreen.astro';
+import ThemesScreen from '../components/screens/ThemesScreen.astro';
 ---
-<BBS title="Home" activePage="index">
-  <section class="hero" data-page="index">
-    <div class="hero-subtitle fg-comment">// ABS NODE 001 // CONNECTED //</div>
-    <AnsiLogo />
-    <div class="typewriter-wrap">
-      <span id="typewriter"></span>
-    </div>
-    <SysinfoBox />
-    <p style="color:var(--comment);font-size:11px;margin-top:14px;letter-spacing:2px">
-      PRESS <span style="color:var(--yellow)">ENTER</span> TO CONNECT &nbsp;·&nbsp;
-      <span style="color:var(--yellow)">P</span> FOR PLUGINS &nbsp;·&nbsp;
-      <span style="color:var(--yellow)">ESC</span> TO DISCONNECT
-    </p>
+<TerminalShell title="Home">
+  <section data-screen="home" class="screen">
+    <HomeScreen />
   </section>
-
-  <section id="about" class="content" style="position:relative;z-index:1">
-    <h2 class="section-header">// orcai //</h2>
-    <p style="color:var(--fg);font-size:13px;line-height:2;max-width:680px;margin-bottom:8px">
-      Most AI tools want you in a browser. <span class="fg-purple">orcai</span> runs in your terminal,
-      inside <span class="fg-cyan">tmux</span>, next to your editor and shell. Launch it, get a session.
-      Point any CLI tool at it with a 10-line YAML file. Chain Claude, Ollama, or local models into
-      YAML pipelines where each step knows its input and output types. When you close the terminal,
-      it's gone — no Electron process lingering, no tab to find.
-    </p>
-    <div class="features">
-      <FeatureCard title="TMUX SESSIONS" borderColor="var(--purple)">
-        <p>orcai tracks your AI workspaces as tmux sessions in a sidebar. Spawn one per task,
-        switch mid-pipeline, kill what you're done with. Everything lives in the terminal you already have open.</p>
-      </FeatureCard>
-      <FeatureCard title="PLUGIN SYSTEM" borderColor="var(--cyan)">
-        <p>Write a YAML file that points at any CLI tool — <code>rg</code>, <code>jq</code>, <code>ffmpeg</code>,
-        your own scripts — and it's a pipeline node. Need something more complex? Implement the gRPC interface in Go.</p>
-      </FeatureCard>
-      <FeatureCard title="AGENT PIPELINES" borderColor="var(--green)">
-        <p>YAML pipelines connect AI providers to plugins in sequence. Each step has typed input and output schemas,
-        so you can chain a Claude prompt into a <code>jq</code> filter into a file write without any glue code.</p>
-      </FeatureCard>
-    </div>
+  <section data-screen="about" class="screen">
+    <AboutScreen />
   </section>
-</BBS>
+  <section data-screen="getting-started" class="screen">
+    <GettingStartedScreen />
+  </section>
+  <section data-screen="plugins" class="screen">
+    <PluginsScreen />
+  </section>
+  <section data-screen="pipelines" class="screen">
+    <PipelinesScreen />
+  </section>
+  <section data-screen="changelog" class="screen">
+    <ChangelogScreen />
+  </section>
+  <section data-screen="themes" class="screen">
+    <ThemesScreen />
+  </section>
+</TerminalShell>

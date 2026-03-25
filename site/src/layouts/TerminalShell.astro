@@ -1,0 +1,31 @@
+---
+import Base from './Base.astro';
+import Nav from '../components/Nav.astro';
+import HelpOverlay from '../components/HelpOverlay.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description } = Astro.props;
+---
+<Base title={title} description={description}>
+  <div class="terminal-shell">
+    <Nav />
+    <noscript>
+      <div style="color:var(--yellow);padding:8px 16px;background:var(--current-line);font-family:monospace;font-size:12px">
+        &#9888; Keyboard navigation requires JavaScript. All content is accessible below.
+      </div>
+    </noscript>
+    <div class="screens-container">
+      <slot />
+    </div>
+    <div class="status-bar">
+      <span>NODE-001</span>
+      <span>SCREEN: <span class="current-screen">HOME</span></span>
+      <span class="clock"></span>
+      <span><span class="online">&#11044;</span> ONLINE</span>
+    </div>
+  </div>
+  <HelpOverlay />
+</Base>

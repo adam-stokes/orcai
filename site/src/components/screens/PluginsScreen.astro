@@ -1,0 +1,42 @@
+---
+---
+<div class="term-pane-header">
+  <pre class="fg-green" style="margin:0;font-size:13px">&#9556;&#9552;&#9552;[ PLUGINS ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;</pre>
+</div>
+<div class="term-pane" style="padding:24px 32px">
+  <h2 class="section-header fg-green">// plugin architecture //</h2>
+  <p style="color:var(--fg);font-size:13px;line-height:2;max-width:700px;margin-bottom:16px">
+    Any CLI tool is a plugin. Write a YAML adapter and orcai discovers it automatically.
+    For complex orchestration, implement the gRPC sidecar interface in any language.
+    Plugins live on your PATH &mdash; no registry, no daemon, no installation ceremony.
+  </p>
+
+  <pre class="fg-comment" style="font-size:11px;margin-bottom:0">&#9556;&#9552;&#9552;[ YAML ADAPTER ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;</pre>
+  <pre class="code-block yaml-block"><code class="copy-target">name: search
+binary: rg
+description: ripgrep file search
+args:
+  - "&#123;&#123;query&#125;&#125;"
+  - "&#123;&#123;path&#125;&#125;"
+input:
+  type: object
+  properties:
+    query: &#123; type: string &#125;
+    path:  &#123; type: string &#125;
+output:
+  type: string</code></pre>
+  <pre class="fg-comment" style="font-size:11px;margin-top:0">&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;</pre>
+
+  <pre class="fg-comment" style="font-size:11px;margin-top:20px;margin-bottom:0">&#9556;&#9552;&#9552;[ GRPC SIDECAR ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;
+&#9553;  Implement the Plugin interface for full control:               &#9553;
+&#9553;                                                                  &#9553;</pre>
+  <pre class="code-block"><code class="copy-target">type Plugin interface &#123;
+    Describe() PluginInfo
+    Execute(ctx context.Context, input Input) (Output, error)
+&#125;</code></pre>
+  <pre class="fg-comment" style="font-size:11px;margin-top:0">&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;</pre>
+
+  <p style="color:var(--comment);font-size:11px;margin-top:16px">
+    <span class="fg-yellow">&rarr;</span> Press <span class="fg-yellow">5</span> for pipelines &nbsp;&middot;&nbsp; <span class="fg-yellow">3</span> for getting started
+  </p>
+</div>

@@ -1,8 +1,69 @@
 /* ─────────────────────────────────────────────────────────────
-   ORCAI ABS  —  bbs.js
-   Hex dump canvas · Typewriter · Keyboard nav · Copy buttons
-   ANSI logo color cycling
+   ORCAI ABBS  —  bbs.js
+   Hex dump canvas · Typewriter · KeyboardRouter · ANSI pipeline demo
    ───────────────────────────────────────────────────────────── */
+
+// ── KeyboardRouter ────────────────────────────────────────────
+var KeyboardRouter = (function() {
+  var activeScreen = 'home';
+  var screenHandlers = {};
+  var screenOrder = ['home','about','getting-started','plugins','pipelines','changelog','themes'];
+
+  function switchScreen(id) {
+    document.querySelectorAll('.screen').forEach(function(el) { el.classList.remove('active'); });
+    var target = document.querySelector('[data-screen="' + id + '"]');
+    if (target) target.classList.add('active');
+    // update nav active
+    document.querySelectorAll('[data-nav-screen]').forEach(function(el) {
+      el.classList.toggle('active', el.dataset.navScreen === id);
+    });
+    // update status bar
+    var csEl = document.querySelector('.current-screen');
+    if (csEl) csEl.textContent = id.toUpperCase().replace(/-/g,' ');
+    activeScreen = id;
+    // call onEnter
+    if (screenHandlers[id] && screenHandlers[id]._onEnter) screenHandlers[id]._onEnter();
+  }
+
+  function register(screenId, handlers) {
+    screenHandlers[screenId] = handlers;
+  }
+
+  function toggleHelp() {
+    var overlay = document.querySelector('.help-overlay');
+    if (overlay) overlay.classList.toggle('open');
+  }
+
+  function dispatch(e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    var overlay = document.querySelector('.help-overlay');
+    if (overlay && overlay.classList.contains('open')) {
+      if (e.key === '?' || e.key === 'Escape' || e.key === 'F1') { e.preventDefault(); toggleHelp(); }
+      return;
+    }
+    var idx = parseInt(e.key);
+    if (idx >= 1 && idx <= screenOrder.length) { e.preventDefault(); switchScreen(screenOrder[idx-1]); return; }
+    switch (e.key) {
+      case '?': case 'F1': e.preventDefault(); toggleHelp(); break;
+      case 'q': case 'Escape':
+        document.body.style.transition = 'opacity 0.5s';
+        document.body.style.opacity = '0';
+        setTimeout(function() { document.body.style.opacity = '1'; }, 2500);
+        break;
+      default:
+        var h = screenHandlers[activeScreen];
+        if (h && h[e.key]) h[e.key](e);
+    }
+  }
+
+  return {
+    switchScreen: switchScreen,
+    register: register,
+    dispatch: dispatch,
+    toggleHelp: toggleHelp,
+    getActive: function() { return activeScreen; }
+  };
+})();
 
 // ── Hex dump background canvas ────────────────────────────────
 function initHexCanvas() {
@@ -133,35 +194,21 @@ function colorLogo() {
     fragment.appendChild(span);
   });
 
-  // Clear and repopulate using safe DOM methods only
   while (logo.firstChild) logo.removeChild(logo.firstChild);
   logo.appendChild(fragment);
 }
 
-// ── Keyboard navigation (index page only) ────────────────────
-function initKeyboardNav() {
-  document.addEventListener('keydown', function(e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-    switch (e.key) {
-      case 'Enter':
-        window.location.href = '/orcai/getting-started';
-        break;
-      case 'p':
-      case 'P':
-        window.location.href = '/orcai/plugins';
-        break;
-      case 'g':
-      case 'G':
-        window.open('https://github.com/adam-stokes/orcai', '_blank');
-        break;
-      case 'Escape':
-        document.body.style.transition = 'opacity 0.4s';
-        document.body.style.opacity    = '0';
-        setTimeout(function() { document.body.style.opacity = '1'; }, 3000);
-        break;
+// ── Clock ──────────────────────────────────────────────────────
+function initClock() {
+  function tick() {
+    var el = document.querySelector('.clock');
+    if (el) {
+      var now = new Date();
+      el.textContent = now.toTimeString().slice(0,8);
     }
-  });
+  }
+  tick();
+  setInterval(tick, 1000);
 }
 
 // ── Copy buttons ───────────────────────────────────────────────
@@ -210,61 +257,86 @@ function fallbackCopy(text) {
   document.body.removeChild(ta);
 }
 
-// ── Scroll reveal ─────────────────────────────────────────────
-function initScrollReveal() {
-  var cards = document.querySelectorAll('.feature-card, .plugin-tier');
-  if (!cards.length || !('IntersectionObserver' in window)) return;
+// ── Pipeline YAML typewriter demo ──────────────────────────────
+var PIPELINE_YAML = [
+  'name: code-review-pipeline',
+  'description: Review code changes with Claude',
+  '',
+  'steps:',
+  '  - id: summarize',
+  '    provider: claude',
+  '    model: claude-sonnet-4-6',
+  '    input:',
+  '      type: object',
+  '      properties:',
+  '        diff: { type: string }',
+  '    output:',
+  '      type: string',
+  '    prompt: |',
+  '      Review this diff and summarize key changes:',
+  '      {{diff}}',
+  '',
+  '  - id: extract-issues',
+  '    plugin: jq',
+  '    input:',
+  '      type: string',
+  '    output:',
+  '      type: array',
+  '    args: ["[.issues[]? | select(.severity==\"high\")]"]',
+  '',
+  '  - id: write-report',
+  '    plugin: write',
+  '    input:',
+  '      type: array',
+  '    output:',
+  '      type: string',
+  '    args: ["./reports/review-{{date}}.json"]'
+].join('\n');
 
-  var obs = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.isIntersecting) {
-        entry.target.style.transition = 'opacity 0.5s, transform 0.5s';
-        entry.target.style.opacity    = '1';
-        entry.target.style.transform  = 'translateY(0)';
-        obs.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.1 });
-
-  cards.forEach(function(card) {
-    card.style.opacity   = '0';
-    card.style.transform = 'translateY(16px)';
-    obs.observe(card);
-  });
-}
-
-// ── Node status clock ─────────────────────────────────────────
-function initNodeStatus() {
-  var el = document.querySelector('.node-status .clock');
+function initPipelineTypewriter() {
+  var el = document.getElementById('pipeline-demo');
   if (!el) return;
-
+  el.textContent = '';
+  var i = 0;
+  var text = PIPELINE_YAML;
   function tick() {
-    el.textContent = new Date().toUTCString().replace('GMT', 'UTC');
+    if (i < text.length) {
+      el.textContent = text.slice(0, i + 1);
+      i++;
+      setTimeout(tick, i % 40 === 0 ? 120 : 18);
+    }
   }
   tick();
-  setInterval(tick, 1000);
 }
 
 // ── Boot ───────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   initHexCanvas();
   colorLogo();
+  initClock();
+  initCopyButtons();
 
-  var tw = document.getElementById('typewriter');
-  if (tw) {
-    typewriter(tw, [
-      'AI in your terminal, not your browser',
-      'tmux-native \u00b7 YAML pipelines \u00b7 any CLI as a plugin',
-      'Claude \u00b7 Ollama \u00b7 Copilot \u00b7 local models',
-      'Ctrl+; to open the chord menu',
+  var twEl = document.getElementById('typewriter');
+  if (twEl) {
+    typewriter(twEl, [
+      'orchestrate your agents.',
+      'build pipelines in YAML.',
+      'run in tmux. stay in the terminal.',
+      'plugins are just CLI tools.',
+      'chain claude → jq → write. done.'
     ]);
   }
 
-  if (document.querySelector('[data-page="index"]')) {
-    initKeyboardNav();
-  }
+  // Register pipelines screen handler
+  KeyboardRouter.register('pipelines', {
+    'r': function() { initPipelineTypewriter(); },
+    'R': function() { initPipelineTypewriter(); },
+    _onEnter: function() { initPipelineTypewriter(); }
+  });
 
-  initCopyButtons();
-  initScrollReveal();
-  initNodeStatus();
+  // keyboard router
+  document.addEventListener('keydown', KeyboardRouter.dispatch);
+
+  // activate home screen by default
+  KeyboardRouter.switchScreen('home');
 });

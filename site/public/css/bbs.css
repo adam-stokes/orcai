@@ -9,8 +9,11 @@
   --green: #50fa7b;
   --yellow: #f1fa8c;
   --red: #ff5555;
+  --orange: #ffb86c;
   --comment: #6272a4;
   --selbg: #44475a;
+  --current-line: #44475a;
+  --selection: #44475a;
   --darkbg: #1e1f29;
 }
 
@@ -26,6 +29,12 @@ html, body {
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   overflow-x: hidden;
   min-height: 100vh;
+}
+
+body {
+  overflow: hidden;
+  height: 100vh;
+  padding-bottom: 22px;
 }
 
 /* CRT scanlines overlay */
@@ -72,6 +81,108 @@ a:hover {
   text-decoration: underline;
 }
 
+/* ─── TERMINAL SHELL LAYOUT ──────────────────────────────── */
+
+.terminal-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.screens-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.screen {
+  display: none;
+}
+
+.screen.active {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.term-pane {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.term-pane::-webkit-scrollbar { width: 6px; }
+.term-pane::-webkit-scrollbar-track { background: var(--bg); }
+.term-pane::-webkit-scrollbar-thumb { background: var(--comment); border-radius: 3px; }
+
+.term-pane-header {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+  padding: 8px 16px 4px;
+  font-family: monospace;
+  color: var(--purple);
+}
+
+/* ─── STATUS BAR ─────────────────────────────────────────── */
+
+.status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 22px;
+  background: var(--current-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--comment);
+  z-index: 50;
+  border-top: 1px solid var(--selection);
+}
+
+.status-bar .online { color: var(--green); }
+.status-bar .current-screen { color: var(--cyan); }
+
+/* ─── HELP OVERLAY ───────────────────────────────────────── */
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  background: rgba(40,42,54,0.97);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--fg);
+}
+
+.help-overlay.open { display: flex; }
+.help-overlay pre { color: var(--fg); font-size: 13px; line-height: 1.8; }
+
+/* ─── NAV BUTTONS ────────────────────────────────────────── */
+
+.nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: inherit;
+  color: var(--fg);
+  padding: 0;
+  letter-spacing: inherit;
+}
+
+.nav-btn:hover { color: var(--cyan); }
+.nav-btn.active { color: var(--green); }
+.nav-btn.nav-brand { color: var(--purple); }
+.nav-btn.nav-brand.active { color: var(--pink); }
+
 /* ─── ANSI COLOR HELPERS ─────────────────────────────────── */
 
 .fg-purple  { color: var(--purple); }
@@ -80,6 +191,7 @@ a:hover {
 .fg-green   { color: var(--green); }
 .fg-yellow  { color: var(--yellow); }
 .fg-red     { color: var(--red); }
+.fg-orange  { color: var(--orange); }
 .fg-comment { color: var(--comment); }
 .fg-fg      { color: var(--fg); }
 .bold       { font-weight: bold; }
@@ -107,10 +219,7 @@ a:hover {
 /* ─── NAV BAR ─────────────────────────────────────────────── */
 
 .bbs-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   z-index: 1000;
   background: var(--darkbg);
   border-bottom: 1px solid var(--purple);
@@ -119,6 +228,7 @@ a:hover {
   color: var(--purple);
   font-size: 13px;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .bbs-nav-inner {

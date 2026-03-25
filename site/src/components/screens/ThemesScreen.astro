@@ -1,0 +1,35 @@
+---
+const palette = [
+  { name: 'Background',    varName: '--bg',           hex: '#282a36', cls: '' },
+  { name: 'Current Line',  varName: '--current-line', hex: '#44475a', cls: '' },
+  { name: 'Foreground',    varName: '--fg',            hex: '#f8f8f2', cls: '' },
+  { name: 'Comment',       varName: '--comment',       hex: '#6272a4', cls: 'fg-comment' },
+  { name: 'Purple',        varName: '--purple',        hex: '#bd93f9', cls: 'fg-purple' },
+  { name: 'Cyan',          varName: '--cyan',           hex: '#8be9fd', cls: 'fg-cyan' },
+  { name: 'Green',         varName: '--green',          hex: '#50fa7b', cls: 'fg-green' },
+  { name: 'Yellow',        varName: '--yellow',         hex: '#f1fa8c', cls: 'fg-yellow' },
+  { name: 'Pink',          varName: '--pink',           hex: '#ff79c6', cls: 'fg-pink' },
+  { name: 'Orange',        varName: '--orange',         hex: '#ffb86c', cls: 'fg-orange' },
+];
+---
+<div class="term-pane-header">
+  <pre class="fg-orange" style="margin:0;font-size:13px">&#9556;&#9552;&#9552;[ THEMES ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;</pre>
+</div>
+<div class="term-pane" style="padding:24px 32px">
+  <h2 class="section-header fg-orange">// dracula palette //</h2>
+  <p style="color:var(--fg);font-size:13px;margin-bottom:20px;line-height:1.8">
+    ORCAI ABBS uses the <span class="fg-purple">Dracula</span> colour scheme throughout &mdash; terminal, TUI, and website.
+    Every colour below maps to a CSS variable used across the entire interface.
+  </p>
+  <div style="font-size:12px;line-height:2;font-family:'Share Tech Mono',monospace">
+    {palette.map(p => (
+      <div>
+        <span class={p.cls || ''} style={p.cls ? '' : `color:${p.hex}`}>&#9608;&#9608;&#9608;&#9608;&#9608;</span>
+        {'  '}{p.varName.padEnd(18)}{'  '}{p.hex}{'  '}{p.name}
+      </div>
+    ))}
+  </div>
+  <p style="color:var(--comment);font-size:11px;margin-top:16px">
+    <span class="fg-yellow">&rarr;</span> Press <span class="fg-yellow">1</span> for home &nbsp;&middot;&nbsp; <span class="fg-yellow">2</span> for about
+  </p>
+</div>

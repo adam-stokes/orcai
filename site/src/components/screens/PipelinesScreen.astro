@@ -1,0 +1,53 @@
+---
+---
+<div class="term-pane-header">
+  <pre class="fg-pink" style="margin:0;font-size:13px">&#9556;&#9552;&#9552;[ PIPELINES ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;</pre>
+</div>
+<div class="term-pane" style="padding:24px 32px">
+  <h2 class="section-header fg-pink">// agent pipeline orchestration //</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:24px">
+    <!-- ANSI DAG diagram -->
+    <div>
+      <p class="fg-comment" style="font-size:11px;margin-bottom:8px">// pipeline DAG</p>
+      <pre class="fg-purple" id="pipeline-dag" style="font-size:12px;line-height:1.6">
+&#9556;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;
+&#9553;   PROVIDER   &#9553;  claude-sonnet-4-6
+&#9553;  (claude)    &#9553;  input: &#123; prompt: string &#125;
+&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9569;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;
+       &#9474; <span class="fg-comment">output: string</span>
+       &#9660;
+&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9577;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;
+&#9553;    PLUGIN    &#9553;  <span class="fg-cyan">jq filter</span>
+&#9553;   (jq)       &#9553;  input: string &rarr; json
+&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9569;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;
+       &#9474; <span class="fg-comment">output: object</span>
+       &#9660;
+&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9577;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;
+&#9553;    OUTPUT    &#9553;  <span class="fg-green">write file</span>
+&#9553;   (write)    &#9553;  path: ./out/result.json
+&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;</pre>
+    </div>
+
+    <!-- YAML typewriter demo -->
+    <div>
+      <p class="fg-comment" style="font-size:11px;margin-bottom:8px">// live demo &nbsp;<span class="fg-yellow">[r]</span> replay</p>
+      <pre id="pipeline-demo" style="font-size:12px;line-height:1.6;color:var(--fg);min-height:220px"></pre>
+    </div>
+  </div>
+
+  <!-- hacker-voice copy -->
+  <pre class="fg-comment" style="font-size:11px;margin:0 0 8px">&#9556;&#9552;&#9552;[ OPERATOR NOTES ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9559;</pre>
+  <p class="fg-cyan" style="font-size:13px;line-height:1.8;font-family:'Share Tech Mono',monospace;margin:0 0 8px">
+    &gt; pipelines are YAML. steps are typed. no glue code.<br/>
+    &gt; each step declares <span class="fg-yellow">input:</span> and <span class="fg-yellow">output:</span> schemas &mdash; enforced at runtime.<br/>
+    &gt; chain any claude model into any CLI tool into any file write.<br/>
+    &gt; parallel branches, retry logic, error handling &mdash; all in the YAML.<br/>
+    &gt; your agents don&apos;t escape the terminal. they run where you do.
+  </p>
+  <pre class="fg-comment" style="font-size:11px">&#9562;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9565;</pre>
+
+  <p style="color:var(--comment);font-size:11px;margin-top:16px">
+    <span class="fg-yellow">&rarr;</span> Press <span class="fg-yellow">4</span> for plugins &nbsp;&middot;&nbsp; <span class="fg-yellow">r</span> to replay demo &nbsp;&middot;&nbsp; <span class="fg-yellow">3</span> for install
+  </p>
+</div>
