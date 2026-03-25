@@ -93,7 +93,7 @@ The optional `splash.ans` file is rendered on the orcai welcome screen. Keep the
 - The path in `theme.yaml` is relative to the theme directory.
 - Strip cursor-movement escape sequences (e.g. `\033[H`, `\033[2J`) — BubbleTea manages its own cursor and these sequences will corrupt the TUI layout.
 - Colour escape sequences (`\033[38;2;R;G;Bm`, `\033[0m`, etc.) are fully supported.
-- Use `ClampWidth` (from `internal/ansiart`) if you need to trim the art to a maximum column width at runtime.
+- If you need to trim the art to a maximum column width at runtime, implement your own column-clamping logic (no shared utility is provided for this).
 
 ## Example: minimal dark theme
 
