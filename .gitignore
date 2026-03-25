@@ -8,8 +8,9 @@ frontend/dist/
 frontend/package-lock.json
 frontend/package.json.md5
 
-# Compiled binary
+# Compiled binaries
 orcai
+orcai-*
 
 # WASM
 assets/plugin.wasm
@@ -25,4 +26,5 @@ assets/plugin.wasm
 # Claude Code
 .claude/settings.local.json
 .claude/sessions/
+.claude/worktrees/
 .claude/*.log
