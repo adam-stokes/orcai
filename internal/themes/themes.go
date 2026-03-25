@@ -47,17 +47,45 @@ type Borders struct {
 }
 
 // StatusBar configures the status bar appearance.
-// BG and FG are stored as-is from YAML (may reference palette keys like
-// "palette.bg"); palette resolution is the caller's responsibility.
+// BG and FG may contain palette references like "palette.bg"; use
+// [Bundle.ResolveRef] to expand them to hex color values before rendering.
 type StatusBar struct {
 	Format string `yaml:"format"`
 	BG     string `yaml:"bg"`
 	FG     string `yaml:"fg"`
 }
 
+// ResolveRef expands a palette reference string to its hex color value.
+// If val starts with "palette.", the remainder is matched case-insensitively
+// against the palette field names (bg, fg, accent, dim, border, error, success).
+// If val does not match a reference or is not found, it is returned unchanged.
+func (b *Bundle) ResolveRef(val string) string {
+	const prefix = "palette."
+	if len(val) <= len(prefix) || val[:len(prefix)] != prefix {
+		return val
+	}
+	key := val[len(prefix):]
+	switch key {
+	case "bg":
+		return b.Palette.BG
+	case "fg":
+		return b.Palette.FG
+	case "accent":
+		return b.Palette.Accent
+	case "dim":
+		return b.Palette.Dim
+	case "border":
+		return b.Palette.Border
+	case "error":
+		return b.Palette.Error
+	case "success":
+		return b.Palette.Success
+	}
+	return val
+}
+
 // ThemeChangedPayload is the structured payload for a theme.changed bus event.
-// Callers may JSON-encode this struct into pb.Event.Payload, or use the theme
-// name directly as plain bytes — both conventions are acceptable.
+// Encode this struct as JSON into pb.Event.Payload when publishing.
 type ThemeChangedPayload struct {
 	Name string `json:"name"`
 }

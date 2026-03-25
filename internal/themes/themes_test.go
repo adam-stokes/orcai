@@ -94,6 +94,27 @@ statusbar:
 	if bundles[0].Name != "mytheme" {
 		t.Errorf("got name %q, want %q", bundles[0].Name, "mytheme")
 	}
+	if bundles[0].Palette.BG != "#000000" {
+		t.Errorf("Palette.BG = %q, want %q", bundles[0].Palette.BG, "#000000")
+	}
+	if bundles[0].Palette.Accent != "#ff0000" {
+		t.Errorf("Palette.Accent = %q, want %q", bundles[0].Palette.Accent, "#ff0000")
+	}
+}
+
+func TestLoadUser_MalformedYAML(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "bad")
+	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(": invalid: [yaml"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_, err := themes.LoadUser(dir)
+	if err == nil {
+		t.Fatal("LoadUser() expected error for malformed YAML, got nil")
+	}
 }
 
 func TestLoadUser_MissingDir_ReturnsEmpty(t *testing.T) {
@@ -203,6 +224,35 @@ func TestRegistry_All_ContainsBundled(t *testing.T) {
 	all := reg.All()
 	if len(all) == 0 {
 		t.Fatal("Registry.All() returned empty slice")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Bundle.ResolveRef
+// ---------------------------------------------------------------------------
+
+func TestBundle_ResolveRef(t *testing.T) {
+	b := themes.Bundle{
+		Palette: themes.Palette{
+			BG: "#282a36", FG: "#f8f8f2", Accent: "#bd93f9",
+			Dim: "#6272a4", Border: "#44475a", Error: "#ff5555", Success: "#50fa7b",
+		},
+	}
+	cases := []struct{ in, want string }{
+		{"palette.bg", "#282a36"},
+		{"palette.fg", "#f8f8f2"},
+		{"palette.accent", "#bd93f9"},
+		{"palette.dim", "#6272a4"},
+		{"palette.border", "#44475a"},
+		{"palette.error", "#ff5555"},
+		{"palette.success", "#50fa7b"},
+		{"#ff0000", "#ff0000"},     // literal hex — unchanged
+		{"palette.unknown", "palette.unknown"}, // unknown ref — unchanged
+	}
+	for _, c := range cases {
+		if got := b.ResolveRef(c.in); got != c.want {
+			t.Errorf("ResolveRef(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }
 
