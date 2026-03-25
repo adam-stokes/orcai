@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
 
 :root {
   --bg: #282a36;
@@ -23,7 +23,7 @@
 html, body {
   background: var(--bg);
   color: var(--fg);
-  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   overflow-x: hidden;
   min-height: 100vh;
 }
@@ -57,7 +57,7 @@ body::before {
 /* ─── TYPOGRAPHY ─────────────────────────────────────────── */
 
 h1, h2, h3 {
-  font-family: 'VT323', 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   letter-spacing: 2px;
   text-transform: uppercase;
 }
@@ -115,7 +115,7 @@ a:hover {
   background: var(--darkbg);
   border-bottom: 1px solid var(--purple);
   padding: 0;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   color: var(--purple);
   font-size: 13px;
   user-select: none;
@@ -133,7 +133,7 @@ a:hover {
 .bbs-nav-border {
   display: block;
   color: var(--purple);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   padding: 0 16px;
   opacity: 0.6;
@@ -199,7 +199,7 @@ a:hover {
 /* ─── ANSI LOGO ───────────────────────────────────────────── */
 
 .ansi-logo {
-  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   line-height: 1.2;
   font-size: clamp(7px, 1.1vw, 15px);
   text-align: left;
@@ -212,7 +212,7 @@ a:hover {
 
 .typewriter-wrap {
   min-height: 2em;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: clamp(13px, 1.5vw, 17px);
   color: var(--fg);
   margin: 12px 0 4px;
@@ -229,7 +229,7 @@ a:hover {
 /* ─── SYSTEM INFO BOX ─────────────────────────────────────── */
 
 .sysinfo-box {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   line-height: 1.7;
   margin-top: 28px;
@@ -240,7 +240,8 @@ a:hover {
 
 .sysinfo-box .box-title {
   color: var(--purple);
-  font-weight: bold;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
   letter-spacing: 1px;
 }
 
@@ -287,7 +288,7 @@ a:hover {
 .feature-card {
   border: 1px solid var(--purple);
   padding: 18px 16px 16px;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   line-height: 1.7;
   background: rgba(30, 31, 41, 0.6);
@@ -333,7 +334,7 @@ a:hover {
 .ascii-box {
   border: 1px solid var(--purple);
   padding: 16px 20px;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   white-space: pre;
   background: rgba(30, 31, 41, 0.5);
 }
@@ -352,7 +353,7 @@ pre.code-block {
   padding-right: 60px;
   overflow-x: auto;
   font-size: 13px;
-  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   line-height: 1.65;
   position: relative;
   margin: 12px 0;
@@ -374,7 +375,7 @@ pre.code-block.bash-block {
   background: none;
   border: none;
   color: var(--yellow);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   cursor: pointer;
   padding: 2px 4px;
@@ -389,7 +390,7 @@ pre.code-block.bash-block {
 /* ─── TERMINAL SESSION CONTENT ────────────────────────────── */
 
 .term-session {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   line-height: 1.8;
   max-width: 800px;
@@ -397,7 +398,7 @@ pre.code-block.bash-block {
 
 .term-section-header {
   color: var(--purple);
-  font-family: 'VT323', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 20px;
   letter-spacing: 2px;
   margin-top: 28px;
@@ -441,7 +442,7 @@ pre.code-block.bash-block {
 
 .term-prompt-label {
   color: var(--purple);
-  font-family: 'VT323', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 18px;
   display: block;
   margin-top: 20px;
@@ -451,7 +452,7 @@ pre.code-block.bash-block {
 
 h2.section-header {
   color: var(--purple);
-  font-family: 'VT323', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 28px;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -465,7 +466,7 @@ h2.section-header {
 .bbs-footer {
   text-align: center;
   color: var(--comment);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   padding: 28px 20px 24px;
   border-top: 1px solid var(--selbg);
@@ -485,7 +486,7 @@ h2.section-header {
 /* ─── PLUGIN DIAGRAM ─────────────────────────────────────── */
 
 .plugin-diagram {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   line-height: 1.8;
   color: var(--fg);
@@ -515,7 +516,7 @@ h2.section-header {
 
 .plugin-tier h3 {
   color: var(--purple);
-  font-family: 'VT323', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 20px;
   letter-spacing: 1px;
   margin-bottom: 12px;
@@ -539,7 +540,7 @@ h2.section-header {
   letter-spacing: 3px;
   text-transform: uppercase;
   margin-bottom: 20px;
-  font-family: 'VT323', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 16px;
 }
 
@@ -618,7 +619,7 @@ h2.section-header {
 /* ─── SETUP GUIDE BOX ────────────────────────────────────── */
 
 .setup-header {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   line-height: 1.6;
   color: var(--purple);
@@ -629,7 +630,7 @@ h2.section-header {
 
 .req-item {
   display: block;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   padding-left: 2ch;
   line-height: 1.9;
@@ -638,7 +639,7 @@ h2.section-header {
 /* ─── NODE STATUS LINE ───────────────────────────────────── */
 
 .node-status {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   color: var(--comment);
   text-align: right;

@@ -1,132 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ORCAI BBS — AI Workspace for Hackers</title>
-  <meta name="description" content="orcai: Go BubbleTea TUI, tmux session manager, AI workspace with plugin support and prompt pipeline builder.">
-  <link rel="stylesheet" href="css/bbs.css">
-</head>
-<body data-page="index">
-
-<!-- Hex dump wallpaper -->
-<canvas id="hexbg"></canvas>
-
-<!-- ── Navigation ─────────────────────────────────────────── -->
-<nav class="bbs-nav" aria-label="Main navigation">
-  <div class="bbs-nav-inner">
-    <a href="index.html"       class="nav-brand active">ORCAI BBS</a>
-    <span class="sep">&nbsp;/&nbsp;</span>
-    <a href="index.html#about">About</a>
-    <span class="sep">&nbsp;/&nbsp;</span>
-    <a href="getting-started.html">Getting Started</a>
-    <span class="sep">&nbsp;/&nbsp;</span>
-    <a href="plugins.html">Plugins</a>
-    <span class="sep">&nbsp;/&nbsp;</span>
-    <a href="https://github.com/adam-stokes/orcai" target="_blank" rel="noopener">GitHub</a>
-  </div>
-  <div class="node-status">
-    NODE-001 &nbsp;|&nbsp; <span class="online">&#11044; ONLINE</span> &nbsp;|&nbsp; <span class="clock"></span>
-  </div>
-</nav>
-
-<!-- ── Hero ──────────────────────────────────────────────────── -->
-<section class="hero">
-
-  <div class="hero-subtitle fg-comment">// BBS NODE 001 // CONNECTED //</div>
-
-  <!-- ANSI art logo -->
-  <pre class="ansi-logo" aria-label="ORCAI logo">
- &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2557; &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2557;  &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2557; &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2557; &#x2588;&#x2588;&#x2557;
-&#x2588;&#x2588;&#x2554;&#x2550;&#x2550;&#x2550;&#x2588;&#x2588;&#x2557;&#x2588;&#x2588;&#x2554;&#x2550;&#x2550;&#x2588;&#x2588;&#x2557;&#x2588;&#x2588;&#x2554;&#x2550;&#x2550;&#x2550;&#x2550;&#x255D;&#x2588;&#x2588;&#x2554;&#x2550;&#x2550;&#x2588;&#x2588;&#x2557;&#x2588;&#x2588;&#x2551;
-&#x2588;&#x2588;&#x2551;   &#x2588;&#x2588;&#x2551;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2554;&#x255D;&#x2588;&#x2588;&#x2551;     &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2551;&#x2588;&#x2588;&#x2551;
-&#x2588;&#x2588;&#x2551;   &#x2588;&#x2588;&#x2551;&#x2588;&#x2588;&#x2554;&#x2550;&#x2550;&#x2588;&#x2588;&#x2557;&#x2588;&#x2588;&#x2551;     &#x2588;&#x2588;&#x2554;&#x2550;&#x2550;&#x2588;&#x2588;&#x2551;&#x2588;&#x2588;&#x2551;
-&#x255A;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2554;&#x255D;&#x2588;&#x2588;&#x2551;  &#x2588;&#x2588;&#x2557;&#x255A;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2557;&#x2588;&#x2588;&#x2551;  &#x2588;&#x2588;&#x2551;&#x2588;&#x2588;&#x2551;
- &#x255A;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x255D; &#x255A;&#x2550;&#x255D;  &#x255A;&#x2550;&#x255D; &#x255A;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x255D;&#x255A;&#x2550;&#x255D;  &#x255A;&#x2550;&#x255D;&#x255A;&#x2550;&#x255D;</pre>
-
-  <!-- Tagline typewriter -->
-  <div class="typewriter-wrap">
-    <span id="typewriter"></span>
-  </div>
-
-  <!-- System info / login panel -->
-  <div class="sysinfo-box" role="complementary" aria-label="System information">
-<span class="box-border">&#x2554;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2557;</span>
-<span class="box-border">&#x2551;  </span><span class="box-title">SYSTEM: ORCAI v0.1.0</span><span class="box-border">                         &#x2551;</span>
-<span class="box-border">&#x2551;  </span><span class="box-label">NODE:   </span><span class="box-value">github.com/adam-stokes/orcai</span><span class="box-border">        &#x2551;</span>
-<span class="box-border">&#x2551;  </span><span class="box-label">OS:     </span><span class="box-value">Linux &#xB7; macOS &#xB7; tmux required</span><span class="box-border">  &#x2551;</span>
-<span class="box-border">&#x2551;  </span><span class="box-label">LANG:   </span><span class="box-value">Go 1.21+</span><span class="box-border">                            &#x2551;</span>
-<span class="box-border">&#x2560;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2563;</span>
-<span class="box-border">&#x2551;  </span><span class="key-hint">[ENTER]</span><span class="key-action"> <a href="getting-started.html">Getting Started</a></span><span class="box-border">                   &#x2551;</span>
-<span class="box-border">&#x2551;  </span><span class="key-hint">[P]</span><span class="key-action">     <a href="plugins.html">Plugin Gallery</a></span><span class="box-border">                      &#x2551;</span>
-<span class="box-border">&#x2551;  </span><span class="key-hint">[G]</span><span class="key-action">     <a href="https://github.com/orcai" target="_blank" rel="noopener">GitHub</a></span><span class="box-border">                           &#x2551;</span>
-<span class="box-border">&#x255A;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x2550;&#x255D;</span>
-  </div>
-
-  <p style="color:var(--comment);font-size:11px;margin-top:14px;letter-spacing:2px">
-    PRESS <span style="color:var(--yellow)">ENTER</span> TO CONNECT &nbsp;&#xB7;&nbsp;
-    <span style="color:var(--yellow)">P</span> FOR PLUGINS &nbsp;&#xB7;&nbsp;
-    <span style="color:var(--yellow)">ESC</span> TO DISCONNECT
-  </p>
-
-</section>
-
-<!-- ── About / Features ───────────────────────────────────── -->
-<section id="about" class="content" style="position:relative;z-index:1">
-  <h2 class="section-header">// What Is ORCAI //</h2>
-
-  <p style="color:var(--fg);font-size:13px;line-height:2;max-width:680px;margin-bottom:8px">
-    <span class="fg-purple">orcai</span> is a Go <span class="fg-cyan">BubbleTea</span> TUI that turns your terminal into an AI command center.
-    Manage tmux sessions from a BBS-style sidebar, wire up any CLI tool as a plugin via gRPC or sidecar YAML,
-    and run multi-step AI agent pipelines across Claude, Ollama, GitHub Copilot — all from one dark, dense, beautiful interface.
-  </p>
-
-  <!-- Features grid -->
-  <div class="features">
-
-    <div class="feature-card">
-      <h3>&#x250C;&#x2500; TMUX SESSIONS &#x2500;&#x2510;</h3>
-      <p>
-        Manage AI agent workspaces from a BBS-style sidebar TUI.
-        Spawn, switch, and kill tmux sessions without leaving your workflow.
-        Each session gets its own pane layout and context.
-      </p>
-    </div>
-
-    <div class="feature-card">
-      <h3>&#x250C;&#x2500; PLUGIN SYSTEM &#x2500;&#x2510;</h3>
-      <p>
-        gRPC plugins + sidecar YAML. Any CLI tool becomes a pipeline node.
-        Tier 1 native Go plugins for speed. Tier 2 wrappers for everything else —
-        ripgrep, jq, ffmpeg, your own scripts.
-      </p>
-    </div>
-
-    <div class="feature-card">
-      <h3>&#x250C;&#x2500; AGENT PIPELINES &#x2500;&#x2510;</h3>
-      <p>
-        YAML pipelines run Claude, Ollama, and Copilot at scale.
-        Chain tools together with typed inputs and outputs.
-        The prompt builder sidebar lets you compose on the fly.
-      </p>
-    </div>
-
-  </div>
-
-</section>
-
-<!-- ── Footer ─────────────────────────────────────────────── -->
-<footer class="bbs-footer">
-  [ <a href="index.html">ORCAI BBS</a> ]
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ORCAI BBS — AI Workspace for Hackers</title><meta name="description" content="orcai: Go BubbleTea TUI, tmux session manager, AI workspace with plugin support and prompt pipeline builder."><link rel="stylesheet" href="/orcai/css/bbs.css"><style>.sysinfo-table[data-astro-cid-tzco7uvn]{border:1px solid var(--purple);border-collapse:collapse;font-family:JetBrains Mono,monospace;font-size:13px;min-width:380px;color:var(--fg)}.sysinfo-table[data-astro-cid-tzco7uvn] th[data-astro-cid-tzco7uvn],.sysinfo-table[data-astro-cid-tzco7uvn] td[data-astro-cid-tzco7uvn]{padding:4px 10px}.sysinfo-title[data-astro-cid-tzco7uvn]{color:var(--cyan);text-align:left;font-weight:400;border-bottom:1px solid var(--purple);padding:6px 10px}.box-label[data-astro-cid-tzco7uvn]{color:var(--comment);white-space:nowrap;vertical-align:top}.box-value[data-astro-cid-tzco7uvn]{color:var(--fg)}.box-value[data-astro-cid-tzco7uvn] a[data-astro-cid-tzco7uvn]{color:var(--cyan);text-decoration:none}.box-value[data-astro-cid-tzco7uvn] a[data-astro-cid-tzco7uvn]:hover{text-decoration:underline}tfoot[data-astro-cid-tzco7uvn] tr[data-astro-cid-tzco7uvn]:first-child td[data-astro-cid-tzco7uvn]{border-top:1px solid var(--selbg)}.sysinfo-hint[data-astro-cid-tzco7uvn]{color:var(--fg)}.sysinfo-hint[data-astro-cid-tzco7uvn] a[data-astro-cid-tzco7uvn]{color:var(--fg);text-decoration:none}.sysinfo-hint[data-astro-cid-tzco7uvn] a[data-astro-cid-tzco7uvn]:hover{color:var(--cyan)}.key-hint[data-astro-cid-tzco7uvn]{color:var(--yellow)}
+</style></head> <body> <canvas id="hexbg"></canvas>  <nav class="bbs-nav" aria-label="Main navigation"> <div class="bbs-nav-inner"> <a href="/orcai/" class="nav-brand active">ORCAI BBS</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/getting-started" class>Getting Started</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/plugins" class>Plugins</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/pipelines" class>Pipelines</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/changelog" class>Changelog</a> <span class="sep">&nbsp;·&nbsp;</span><a href="https://github.com/adam-stokes/orcai" class target="_blank" rel="noopener">GitHub</a>  </div> <div class="node-status">
+NODE-001 &nbsp;|&nbsp; <span class="online">&#11044; ONLINE</span> &nbsp;|&nbsp; <span class="clock"></span> </div> </nav>  <section class="hero" data-page="index"> <div class="hero-subtitle fg-comment">// BBS NODE 001 // CONNECTED //</div> <pre class="ansi-logo" id="ansi-logo" aria-label="ORCAI logo" style="line-height:1.0"> ██████╗ ██████╗  ██████╗ █████╗ ██╗
+██╔═══██╗██╔══██╗██╔════╝██╔══██╗██║
+██║   ██║██████╔╝██║     ███████║██║
+██║   ██║██╔══██╗██║     ██╔══██║██║
+╚██████╔╝██║  ██╗╚██████╗██║  ██║██║
+ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝</pre> <div class="typewriter-wrap"> <span id="typewriter"></span> </div> <div class="sysinfo-box" role="complementary" aria-label="System information" data-astro-cid-tzco7uvn> <table class="sysinfo-table" data-astro-cid-tzco7uvn> <thead data-astro-cid-tzco7uvn> <tr data-astro-cid-tzco7uvn> <th colspan="2" class="sysinfo-title" data-astro-cid-tzco7uvn>SYSTEM: ORCAI v0.1.0</th> </tr> </thead> <tbody data-astro-cid-tzco7uvn> <tr data-astro-cid-tzco7uvn> <td class="box-label" data-astro-cid-tzco7uvn>NODE:</td> <td class="box-value" data-astro-cid-tzco7uvn><a href="https://github.com/adam-stokes/orcai" target="_blank" rel="noopener" data-astro-cid-tzco7uvn>github.com/adam-stokes/orcai</a></td> </tr> <tr data-astro-cid-tzco7uvn> <td class="box-label" data-astro-cid-tzco7uvn>OS:</td> <td class="box-value" data-astro-cid-tzco7uvn>Linux · macOS · tmux required</td> </tr> <tr data-astro-cid-tzco7uvn> <td class="box-label" data-astro-cid-tzco7uvn>LANG:</td> <td class="box-value" data-astro-cid-tzco7uvn>Go 1.21+</td> </tr> </tbody> <tfoot data-astro-cid-tzco7uvn> <tr data-astro-cid-tzco7uvn> <td colspan="2" class="sysinfo-hint" data-astro-cid-tzco7uvn><span class="key-hint" data-astro-cid-tzco7uvn>[ENTER]</span> <a href="/orcai/getting-started" data-astro-cid-tzco7uvn>Getting Started</a></td> </tr> <tr data-astro-cid-tzco7uvn> <td colspan="2" class="sysinfo-hint" data-astro-cid-tzco7uvn><span class="key-hint" data-astro-cid-tzco7uvn>[P]</span> <a href="/orcai/plugins" data-astro-cid-tzco7uvn>Plugin Gallery</a></td> </tr> <tr data-astro-cid-tzco7uvn> <td colspan="2" class="sysinfo-hint" data-astro-cid-tzco7uvn><span class="key-hint" data-astro-cid-tzco7uvn>[G]</span> <a href="https://github.com/adam-stokes/orcai" target="_blank" rel="noopener" data-astro-cid-tzco7uvn>GitHub</a></td> </tr> </tfoot> </table> </div> <p style="color:var(--comment);font-size:11px;margin-top:14px;letter-spacing:2px">
+PRESS <span style="color:var(--yellow)">ENTER</span> TO CONNECT &nbsp;·&nbsp;
+<span style="color:var(--yellow)">P</span> FOR PLUGINS &nbsp;·&nbsp;
+<span style="color:var(--yellow)">ESC</span> TO DISCONNECT
+</p> </section> <section id="about" class="content" style="position:relative;z-index:1"> <h2 class="section-header">// What Is ORCAI //</h2> <p style="color:var(--fg);font-size:13px;line-height:2;max-width:680px;margin-bottom:8px"> <span class="fg-purple">orcai</span> is a Go <span class="fg-cyan">BubbleTea</span> TUI
+      that turns your terminal into an AI command center. Manage tmux sessions from a BBS-style
+      sidebar, wire up any CLI tool as a plugin via gRPC or sidecar YAML, and run multi-step AI
+      agent pipelines across Claude, Ollama, GitHub Copilot — all from one dark, dense, beautiful interface.
+</p> <div class="features"> <div class="feature-card" style="border-color: var(--purple)"> <h3>┌─ TMUX SESSIONS ─┐</h3>  <p>Manage AI agent workspaces from a BBS-style sidebar TUI. Spawn, switch, and kill tmux sessions without leaving your workflow.</p>  </div> <div class="feature-card" style="border-color: var(--cyan)"> <h3>┌─ PLUGIN SYSTEM ─┐</h3>  <p>gRPC plugins + sidecar YAML. Any CLI tool becomes a pipeline node. Tier 1 native Go. Tier 2 wrappers for everything else.</p>  </div> <div class="feature-card" style="border-color: var(--green)"> <h3>┌─ AGENT PIPELINES ─┐</h3>  <p>YAML pipelines run Claude, Ollama, and Copilot at scale. Chain tools with typed inputs and outputs.</p>  </div> </div> </section>  <footer class="bbs-footer">
+[ <a href="/orcai/">ORCAI BBS</a> ]
   &nbsp;[ EST. 2025 ]&nbsp;
   [ PRESS ESC TO QUIT ]&nbsp;
   [ <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener">MIT LICENSE</a> ]
-  <br>
-  <span style="color:var(--selbg);font-size:10px;letter-spacing:1px">
-    Built with Go &#xB7; BubbleTea &#xB7; tmux &#xB7; love
-  </span>
-</footer>
-
-<script src="js/bbs.js"></script>
-</body>
-</html>
+<br> <span style="color:var(--selbg);font-size:10px;letter-spacing:1px">
+Built with Go · BubbleTea · tmux · love
+</span> </footer>  <script src="/orcai/js/bbs.js"></script> </body> </html>

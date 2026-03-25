@@ -1,0 +1,21 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pipeline Reference — ORCAI BBS</title><meta name="description" content="orcai: Go BubbleTea TUI, tmux session manager, AI workspace with plugin support and prompt pipeline builder."><link rel="stylesheet" href="/orcai/css/bbs.css"><style>.pipeline-doc[data-astro-cid-iyhawkzo]{margin-bottom:48px}.pipeline-doc[data-astro-cid-iyhawkzo] h3[data-astro-cid-iyhawkzo]{font-family:JetBrains Mono,monospace;font-size:15px;margin-bottom:4px}
+</style></head> <body> <canvas id="hexbg"></canvas>  <nav class="bbs-nav" aria-label="Main navigation"> <div class="bbs-nav-inner"> <a href="/orcai/" class="nav-brand">ORCAI BBS</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/getting-started" class>Getting Started</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/plugins" class>Plugins</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/pipelines" class="active">Pipelines</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/changelog" class>Changelog</a> <span class="sep">&nbsp;·&nbsp;</span><a href="https://github.com/adam-stokes/orcai" class target="_blank" rel="noopener">GitHub</a>  </div> <div class="node-status">
+NODE-001 &nbsp;|&nbsp; <span class="online">&#11044; ONLINE</span> &nbsp;|&nbsp; <span class="clock"></span> </div> </nav>  <div class="content content-padded" style="position:relative;z-index:1" data-astro-cid-iyhawkzo> <h2 class="section-header" data-astro-cid-iyhawkzo>// Pipeline Reference //</h2> <article class="pipeline-doc" data-astro-cid-iyhawkzo> <h3 class="fg-cyan" data-astro-cid-iyhawkzo>Quickstart Pipeline</h3> <p class="fg-comment" style="font-size:12px;margin-bottom:16px" data-astro-cid-iyhawkzo>Your first orcai pipeline in 5 minutes</p> <h2 id="quickstart-pipeline">Quickstart Pipeline</h2>
+<p>Create a file named <code>hello.pipeline.yaml</code>:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#85E89D">name</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">hello</span></span>
+<span class="line"><span style="color:#85E89D">steps</span><span style="color:#E1E4E8">:</span></span>
+<span class="line"><span style="color:#E1E4E8">  - </span><span style="color:#85E89D">id</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">ask</span></span>
+<span class="line"><span style="color:#85E89D">    provider</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">claude</span></span>
+<span class="line"><span style="color:#85E89D">    prompt</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">&quot;Say hello in the style of a 1990s BBS sysop&quot;</span></span></code></pre>
+<p>Run it:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">./bin/orcai</span><span style="color:#9ECBFF"> pipeline</span><span style="color:#9ECBFF"> run</span><span style="color:#9ECBFF"> hello.pipeline.yaml</span></span></code></pre>
+<p>Expected output:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="plaintext"><code><span class="line"><span>GREETINGS SYSOP! YOU HAVE CONNECTED TO THE ORCAI NODE.</span></span>
+<span class="line"><span>TYPE HELP FOR A LIST OF COMMANDS. HAVE A NICE DAY.</span></span></code></pre> </article> </div>  <footer class="bbs-footer">
+[ <a href="/orcai/">ORCAI BBS</a> ]
+  &nbsp;[ EST. 2025 ]&nbsp;
+  [ PRESS ESC TO QUIT ]&nbsp;
+  [ <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener">MIT LICENSE</a> ]
+<br> <span style="color:var(--selbg);font-size:10px;letter-spacing:1px">
+Built with Go · BubbleTea · tmux · love
+</span> </footer>  <script src="/orcai/js/bbs.js"></script> </body> </html>

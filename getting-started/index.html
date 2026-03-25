@@ -1,0 +1,45 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Getting Started — ORCAI BBS</title><meta name="description" content="orcai: Go BubbleTea TUI, tmux session manager, AI workspace with plugin support and prompt pipeline builder."><link rel="stylesheet" href="/orcai/css/bbs.css"></head> <body> <canvas id="hexbg"></canvas>  <nav class="bbs-nav" aria-label="Main navigation"> <div class="bbs-nav-inner"> <a href="/orcai/" class="nav-brand">ORCAI BBS</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/getting-started" class="active">Getting Started</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/plugins" class>Plugins</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/pipelines" class>Pipelines</a> <span class="sep">&nbsp;·&nbsp;</span><a href="/orcai/changelog" class>Changelog</a> <span class="sep">&nbsp;·&nbsp;</span><a href="https://github.com/adam-stokes/orcai" class target="_blank" rel="noopener">GitHub</a>  </div> <div class="node-status">
+NODE-001 &nbsp;|&nbsp; <span class="online">&#11044; ONLINE</span> &nbsp;|&nbsp; <span class="clock"></span> </div> </nav>  <main class="content content-padded" style="position:relative;z-index:1"> <!-- Header box --> <div class="setup-header"> <span class="fg-purple">╔══════════════════════════════════════════════════╗</span> <span class="fg-purple">║ </span><span style="color:var(--cyan)">ORCAI SETUP GUIDE</span><span class="fg-comment"> //  NODE 001 </span><span class="fg-purple">║</span> <span class="fg-purple">╚══════════════════════════════════════════════════╝</span></div> <div class="term-session"> <!-- System Requirements --> <span class="term-prompt-label">&#x25BA; SYSTEM REQUIREMENTS</span> <span class="term-divider">──────────────────────</span> <span class="req-item"><span class="term-check-ok">[✓]</span> <span class="fg-fg">Go 1.21+</span></span> <span class="req-item"><span class="term-check-ok">[✓]</span> <span class="fg-fg">tmux 3.0+</span></span> <span class="req-item"><span class="term-check-ok">[✓]</span> <span class="fg-fg">Terminal with 256-color support</span></span> <span class="req-item"><span class="fg-comment">[ ]</span> <span class="fg-comment">Claude API key (for AI features)</span></span> <span class="req-item"><span class="fg-comment">[ ]</span> <span class="fg-comment">Ollama (optional, for local models)</span></span> <!-- Installation --> <span class="term-prompt-label" style="margin-top:28px">&#x25BA; INSTALLATION</span> <span class="term-divider">──────────────</span> <span class="fg-comment" style="font-size:12px;display:block;margin-bottom:6px"># Clone the repository</span> <pre class="code-block bash-block">git clone https://github.com/orcai/orcai
+cd orcai
+make build
+./bin/orcai</pre> <span class="fg-comment" style="font-size:12px;display:block;margin:10px 0 6px"># Or install directly with go install</span> <pre class="code-block bash-block">go install github.com/orcai/orcai@latest</pre> <!-- First Launch --> <span class="term-prompt-label" style="margin-top:28px">&#x25BA; FIRST LAUNCH</span> <span class="term-divider">─────────────</span> <span class="fg-comment" style="font-size:12px;display:block;margin-bottom:6px"># orcai boots into a BubbleTea TUI inside a tmux session</span> <span class="term-cmd" style="display:block;color:var(--green);padding-left:0">orcai</span> <br> <span class="term-output" style="padding-left:0">orcai creates a tmux session named <span class="fg-cyan">"orcai"</span> and attaches to it.</span> <span class="term-output" style="padding-left:0">The sidebar on the left shows active sessions and plugin nodes.</span> <span class="term-output" style="padding-left:0">The prompt builder panel lives on the right.</span> <!-- Keybindings --> <span class="term-prompt-label" style="margin-top:28px">&#x25BA; KEYBINDINGS</span> <span class="term-divider">────────────</span> <pre class="code-block">Ctrl+;        Open chord menu
+Ctrl+; s      New tmux session
+Ctrl+; p      Open prompt builder
+Ctrl+; g      Plugin gallery
+Ctrl+; q      Quit orcai
+?             Show help overlay
+Tab           Cycle panels</pre> <!-- Configuration --> <span class="term-prompt-label" style="margin-top:28px">&#x25BA; CONFIGURATION</span> <span class="term-divider">──────────────</span> <span class="fg-comment" style="font-size:12px;display:block;margin-bottom:6px"># Config lives at ~/.config/orcai/config.yaml</span> <pre class="code-block yaml-block">providers:
+  claude:
+    api_key: &quot;${ANTHROPIC_API_KEY}&quot;
+    model: claude-opus-4-5
+  ollama:
+    base_url: &quot;http://localhost:11434&quot;
+    model: llama3.2
+
+tmux:
+  session_prefix: &quot;orcai-&quot;
+  default_layout: tiled
+
+plugins:
+  dir: &quot;~/.config/orcai/plugins&quot;
+  autoload: true</pre> <!-- Environment Variables --> <span class="term-prompt-label" style="margin-top:28px">&#x25BA; ENVIRONMENT VARIABLES</span> <span class="term-divider">───────────────────────</span> <pre class="code-block bash-block">export ANTHROPIC_API_KEY=&quot;sk-ant-...&quot;    # Claude API
+export OLLAMA_HOST=&quot;http://localhost:11434&quot;  # Ollama base
+export ORCAI_CONFIG=&quot;~/.config/orcai&quot;   # Config dir override
+export ORCAI_LOG_LEVEL=&quot;debug&quot;          # Logging verbosity</pre> <!-- Your First Plugin --> <span class="term-prompt-label" style="margin-top:28px">&#x25BA; YOUR FIRST PLUGIN</span> <span class="term-divider">───────────────────</span> <span class="fg-comment" style="font-size:12px;display:block;margin-bottom:6px"># Wrap any CLI tool with a sidecar YAML — no code required</span> <pre class="code-block yaml-block"># ~/.config/orcai/plugins/jq.yaml
+name: jq
+description: JSON processor
+command: jq
+args: [&quot;-r&quot;, &quot;.&quot;]
+input_schema: &#39;{&quot;type&quot;:&quot;string&quot;,&quot;description&quot;:&quot;JSON input&quot;}&#39;
+output_schema: &#39;{&quot;type&quot;:&quot;string&quot;,&quot;description&quot;:&quot;Processed output&quot;}&#39;</pre> <span class="fg-comment" style="font-size:12px;display:block;margin:10px 0 6px"># Drop the YAML in the plugins dir and reload</span> <pre class="code-block bash-block">mkdir -p ~/.config/orcai/plugins
+cp jq.yaml ~/.config/orcai/plugins/
+# In orcai: Ctrl+; g  →  Reload Plugins</pre> <br> <span class="fg-green" style="display:block;margin-top:8px">
+Ready? See <a href="/orcai/plugins" style="color:var(--cyan)">Plugin System</a> for advanced plugin development.
+</span> </div><!-- /term-session --> </main>  <footer class="bbs-footer">
+[ <a href="/orcai/">ORCAI BBS</a> ]
+  &nbsp;[ EST. 2025 ]&nbsp;
+  [ PRESS ESC TO QUIT ]&nbsp;
+  [ <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener">MIT LICENSE</a> ]
+<br> <span style="color:var(--selbg);font-size:10px;letter-spacing:1px">
+Built with Go · BubbleTea · tmux · love
+</span> </footer>  <script src="/orcai/js/bbs.js"></script> </body> </html>
