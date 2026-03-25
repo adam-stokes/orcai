@@ -1,0 +1,7 @@
+name: orcai-sysop
+binary: orcai-sysop
+description: "ABS sysop panel — agent monitor and session manager"
+subscribe:
+  - session.started
+  - session.ended
+  - orcai.telemetry

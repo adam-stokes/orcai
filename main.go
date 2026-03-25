@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"syscall"
 
@@ -13,14 +14,26 @@ import (
 	"github.com/adam-stokes/orcai/internal/picker"
 	"github.com/adam-stokes/orcai/internal/promptbuilder"
 	"github.com/adam-stokes/orcai/internal/sidebar"
-	"github.com/adam-stokes/orcai/internal/welcome"
 )
 
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "_welcome":
-			welcome.Run()
+			// Launch the orcai-welcome widget binary. Look it up in PATH first;
+			// fall back to the same directory as the orcai binary.
+			bin := "orcai-welcome"
+			if _, err := exec.LookPath(bin); err != nil {
+				self, _ := os.Executable()
+				bin = filepath.Join(filepath.Dir(self), "orcai-welcome")
+			}
+			wCmd := exec.Command(bin)
+			wCmd.Stdin = os.Stdin
+			wCmd.Stdout = os.Stdout
+			wCmd.Stderr = os.Stderr
+			if err := wCmd.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "orcai-welcome: %v\n", err)
+			}
 			return
 		case "_sidebar":
 			sidebar.Run()

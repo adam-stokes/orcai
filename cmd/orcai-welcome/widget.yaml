@@ -1,0 +1,8 @@
+name: orcai-welcome
+binary: orcai-welcome
+description: "ABS welcome dashboard widget"
+subscribe:
+  - theme.changed
+  - session.started
+  - session.ended
+  - orcai.telemetry

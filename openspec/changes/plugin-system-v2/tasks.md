@@ -11,19 +11,19 @@
 - [x] 2.3 Implement `LoadUser(dir string)` — scans `~/.config/orcai/providers/*.yaml`
 - [x] 2.4 Implement `Registry` — merges bundled + user profiles (user wins on name collision), binary detection via `exec.LookPath`
 - [x] 2.5 Write table-driven tests for profile loading, merging, and binary detection
-- [ ] 2.6 Replace `knownCLITools` in `internal/discovery/discovery.go` with `providers.Registry`
-- [ ] 2.7 Replace `adapterDefs` in `internal/bridge/manager.go` with `providers.Registry`
-- [ ] 2.8 Remove `internal/adapters/{claude,gemini,copilot}/` packages
+- [x] 2.6 Replace `knownCLITools` in `internal/discovery/discovery.go` with `providers.Registry`
+- [x] 2.7 Replace `adapterDefs` in `internal/bridge/manager.go` with `providers.Registry`
+- [x] 2.8 Remove `internal/adapters/{claude,gemini,copilot}/` packages
 
 ## 3. Theme Package
 
-- [ ] 3.1 Create `internal/themes/` package with `Bundle` and `Palette` structs matching the theme.yaml schema
-- [ ] 3.2 Implement `LoadBundled()` — loads embedded ABS theme from `internal/assets/themes/`
-- [ ] 3.3 Implement `LoadUser(dir string)` — scans `~/.config/orcai/themes/*/theme.yaml`
-- [ ] 3.4 Implement `Registry` — merges bundled + user themes, resolves palette references
-- [ ] 3.5 Implement `SetActive(name string)` — persists active theme to orcai config
-- [ ] 3.6 Write tests for bundle loading, palette resolution, and fallback behavior on missing assets
-- [ ] 3.7 Wire theme registry into orcai startup; publish `theme.changed` on theme switch
+- [x] 3.1 Create `internal/themes/` package with `Bundle` and `Palette` structs matching the theme.yaml schema
+- [x] 3.2 Implement `LoadBundled()` — loads embedded ABS theme from `internal/assets/themes/`
+- [x] 3.3 Implement `LoadUser(dir string)` — scans `~/.config/orcai/themes/*/theme.yaml`
+- [x] 3.4 Implement `Registry` — merges bundled + user themes, resolves palette references
+- [x] 3.5 Implement `SetActive(name string)` — persists active theme to orcai config
+- [x] 3.6 Write tests for bundle loading, palette resolution, and fallback behavior on missing assets
+- [x] 3.7 Wire theme registry into orcai startup; publish `theme.changed` on theme switch
 
 ## 4. Bus Daemon
 
@@ -46,12 +46,12 @@
 
 ## 6. First-Party Widget Migration
 
-- [ ] 6.1 Create `cmd/orcai-welcome/` — welcome dashboard widget binary with `widget.yaml` manifest
-- [ ] 6.2 Port dashboard BubbleTea model from `internal/welcome/` to the welcome widget binary
-- [ ] 6.3 Replace hardcoded ANSI color constants in welcome widget with palette values from `theme.changed` bus event
-- [ ] 6.4 Subscribe welcome widget to `theme.changed`, `session.started`, `session.ended`, `orcai.telemetry`
-- [ ] 6.5 Remove `internal/welcome/` package after migration is validated
-- [ ] 6.6 Create `cmd/orcai-sysop/` — sysop panel widget binary with `widget.yaml` manifest (stub implementation acceptable initially)
+- [x] 6.1 Create `cmd/orcai-welcome/` — welcome dashboard widget binary with `widget.yaml` manifest
+- [x] 6.2 Port dashboard BubbleTea model from `internal/welcome/` to the welcome widget binary
+- [x] 6.3 Replace hardcoded ANSI color constants in welcome widget with palette values from `theme.changed` bus event
+- [x] 6.4 Subscribe welcome widget to `theme.changed`, `session.started`, `session.ended`, `orcai.telemetry`
+- [x] 6.5 Remove `internal/welcome/` package after migration is validated
+- [x] 6.6 Create `cmd/orcai-sysop/` — sysop panel widget binary with `widget.yaml` manifest (stub implementation acceptable initially)
 
 ## 7. Theme Integration Cleanup
 
