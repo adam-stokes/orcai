@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/adam-stokes/orcai/internal/providers"
 	bridgepb "github.com/adam-stokes/orcai/proto/bridgepb"
 )
 
@@ -55,19 +56,14 @@ func (m *Manager) Start(_ context.Context) error {
 	mgrCtx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 
-	// adapterDef maps the adapter name to the CLI binary it requires.
-	type adapterDef struct{ name, bin string }
-	adapterDefs := []adapterDef{
-		{"claude", "claude"},
-		{"gemini", "gemini"},
-		{"copilot", "copilot"},
+	reg, err := providers.NewRegistry("")
+	if err != nil {
+		cancel()
+		return fmt.Errorf("load provider registry: %w", err)
 	}
 
-	for _, def := range adapterDefs {
-		if _, err := exec.LookPath(def.bin); err != nil {
-			continue // CLI not installed; skip this adapter
-		}
-		name := def.name
+	for _, profile := range reg.Available() {
+		name := profile.Name
 		sockPath := filepath.Join(dir, name+".sock")
 		proc := exec.CommandContext(mgrCtx, self, "bridge", name,
 			"--socket", sockPath,

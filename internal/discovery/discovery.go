@@ -2,9 +2,10 @@ package discovery
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/adam-stokes/orcai/internal/providers"
 )
 
 // PluginType distinguishes native gRPC plugins from auto-detected CLI wrappers.
@@ -25,22 +26,10 @@ type Plugin struct {
 	PipelineFile string
 }
 
-// knownCLITools is the built-in registry of AI CLI tools orcai auto-detects.
-// Plugin name is derived directly from the Name field (usually matching the binary name).
-// For multi-word commands like "gh copilot", Name is the logical alias ("copilot") and
-// Args holds the subcommand so the name stays unique and predictable.
-var knownCLITools = []Plugin{
-	{Name: "claude",   Command: "claude"},
-	{Name: "opencode", Command: "opencode"},
-	{Name: "copilot",  Command: "gh", Args: []string{"copilot"}},
-	{Name: "gemini",   Command: "gemini"},
-	{Name: "aider",    Command: "aider"},
-	{Name: "goose",    Command: "goose"},
-}
-
 // Discover returns all available plugins: Tier 1 (native, from configDir/plugins/),
 // pipeline definitions (from configDir/pipelines/), and Tier 2 (CLI wrappers from PATH).
 // Native plugins and pipelines shadow CLI wrappers of the same name.
+// CLI wrappers are sourced from the providers.Registry (bundled + user-defined profiles).
 func Discover(configDir string) ([]Plugin, error) {
 	native, err := scanNative(filepath.Join(configDir, "plugins"))
 	if err != nil {
@@ -60,16 +49,22 @@ func Discover(configDir string) ([]Plugin, error) {
 		knownNames[p.Name] = true
 	}
 
+	reg, err := providers.NewRegistry(filepath.Join(configDir, "providers"))
+	if err != nil {
+		return nil, err
+	}
+
 	plugins := append(native, pipelines...)
-	for _, tool := range knownCLITools {
-		if knownNames[tool.Name] {
+	for _, profile := range reg.Available() {
+		if knownNames[profile.Name] {
 			continue // native plugin or pipeline takes priority
 		}
-		if _, err := exec.LookPath(tool.Command); err == nil {
-			t := tool
-			t.Type = TypeCLIWrapper
-			plugins = append(plugins, t)
-		}
+		plugins = append(plugins, Plugin{
+			Name:    profile.Name,
+			Command: profile.Binary,
+			Args:    profile.Session.LaunchArgs,
+			Type:    TypeCLIWrapper,
+		})
 	}
 	return plugins, nil
 }
