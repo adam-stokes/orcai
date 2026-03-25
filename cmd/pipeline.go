@@ -87,9 +87,20 @@ var pipelineRunCmd = &cobra.Command{
 		runProviders := picker.BuildProviders()
 		mgr := plugin.NewManager()
 		for _, prov := range runProviders {
-			args := picker.PipelineLaunchArgs(prov.ID)
-			if err := mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", prov.ID, args...)); err != nil {
+			provArgs := picker.PipelineLaunchArgs(prov.ID)
+			if err := mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", prov.ID, provArgs...)); err != nil {
 				fmt.Fprintf(os.Stderr, "pipeline: register provider %q: %v\n", prov.ID, err)
+			}
+		}
+
+		// Load sidecar plugins from ~/.config/orcai/wrappers/.
+		wrappersConfigDir, _ := orcaiConfigDir()
+		if wrappersConfigDir != "" {
+			wrappersDir := filepath.Join(wrappersConfigDir, "wrappers")
+			if errs := mgr.LoadWrappersFromDir(wrappersDir); len(errs) > 0 {
+				for _, e := range errs {
+					fmt.Fprintf(os.Stderr, "pipeline: sidecar load warning: %v\n", e)
+				}
 			}
 		}
 

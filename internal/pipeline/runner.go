@@ -712,6 +712,9 @@ func executePluginStep(ctx context.Context, step *Step, ec *ExecutionContext, mg
 
 	stepVars := ec.FlatStrings()
 	stepVars["model"] = step.Model
+	for k, v := range step.Vars {
+		stepVars[k] = Interpolate(v, snap)
+	}
 
 	var buf bytes.Buffer
 	if err := pl.Execute(ctx, promptOrInput, stepVars, &buf); err != nil {
