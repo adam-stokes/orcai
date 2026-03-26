@@ -567,49 +567,47 @@ func TestFeedScrollIndicator_DownWhenContentBelow(t *testing.T) {
 
 // ── Feed navigation (tasks 6.1–6.4) ──────────────────────────────────────────
 
-// TestTabFromAgent_FocusesFeed verifies that pressing Tab when the Agent Runner
-// is focused moves focus to the Activity Feed.
-func TestTabFromAgent_FocusesFeed(t *testing.T) {
-	m := switchboard.New()
-	// Use "a" key to focus the agent section.
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	m3 := m2.(switchboard.Model)
+// TestTabCycle_FullCycle verifies the full Tab focus cycle:
+// launcher → agent → signalBoard → feed → launcher
+func TestTabCycle_FullCycle(t *testing.T) {
+	m := switchboard.NewWithPipelines([]string{"alpha", "beta"})
+	// Start: launcher focused (default).
 
-	// Press Tab — should transfer focus to feed.
-	m4, _ := m3.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m5 := m4.(switchboard.Model)
-
-	// Confirm feed is now focused by verifying j moves the feed cursor.
-	m6, _ := m5.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	m7 := m6.(switchboard.Model)
-	// If feed is focused, j will try to advance feedCursor. With no entries
-	// feedCursor stays 0 — so also confirm agent is no longer capturing j
-	// by checking that a subsequent Tab lands us back at launcher (feed→launcher).
-	m8, _ := m7.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m9 := m8.(switchboard.Model)
-	// After feed→Tab→launcher, pressing j should move launcher cursor (not feed).
-	// We can verify by confirming FeedCursor is still 0 (feed was focused but had
-	// no entries) and that the Tab succeeded without panicking.
-	if m9.FeedCursor() != 0 {
-		t.Errorf("feedCursor should be 0 after Tab-from-agent sequence, got %d", m9.FeedCursor())
+	// Tab 1: launcher → agent
+	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m2m := m2.(switchboard.Model)
+	if m2m.SignalBoardFocused() || m2m.FeedFocused() {
+		t.Error("after 1 Tab: expected agent focused, got signalBoard or feed")
 	}
 
-	// More direct: set feed focused directly, add entries, press j, check cursor.
-	m10 := switchboard.New()
-	m10 = m10.AddFeedEntry("id1", "job one", switchboard.FeedDone, []string{"line a", "line b"})
-	m10 = m10.AddFeedEntry("id2", "job two", switchboard.FeedDone, []string{"line c"})
-	// Focus agent via "a", then Tab to feed.
-	m11, _ := m10.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	m12, _ := m11.(switchboard.Model).Update(tea.KeyMsg{Type: tea.KeyTab})
-	m13 := m12.(switchboard.Model)
-	// Feed should now be focused — j should advance feedCursor.
-	m14, _ := m13.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	m15 := m14.(switchboard.Model)
-	if m15.FeedCursor() == 0 {
-		t.Error("feedCursor should advance after j when feed is focused (after Tab from agent)")
+	// Tab 2: agent → signalBoard
+	m3, _ := m2m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m3m := m3.(switchboard.Model)
+	if !m3m.SignalBoardFocused() {
+		t.Error("after 2 Tabs: expected signalBoard focused")
 	}
-	// Also confirm agent is not focused: j would have moved launcher or agent
-	// differently. The FeedCursor() > 0 confirms feed captured the key.
+
+	// Tab 3: signalBoard → feed
+	m4, _ := m3m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m4m := m4.(switchboard.Model)
+	if !m4m.FeedFocused() {
+		t.Error("after 3 Tabs: expected feed focused")
+	}
+
+	// Tab 4: feed → launcher — add entries first so feedCursor could move if broken
+	m4m = m4m.AddFeedEntry("id1", "job one", switchboard.FeedDone, []string{"line a", "line b"})
+	m5, _ := m4m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m5m := m5.(switchboard.Model)
+	if m5m.FeedFocused() || m5m.SignalBoardFocused() {
+		t.Error("after 4 Tabs: expected launcher focused")
+	}
+	// j should move launcher cursor now, not feedCursor
+	cursorBefore := m5m.FeedCursor()
+	m6, _ := m5m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m6m := m6.(switchboard.Model)
+	if m6m.FeedCursor() != cursorBefore {
+		t.Errorf("feedCursor should not change when launcher is focused, got %d → %d", cursorBefore, m6m.FeedCursor())
+	}
 }
 
 // TestTabFromFeed_FocusesLauncher verifies that pressing Tab when the Activity

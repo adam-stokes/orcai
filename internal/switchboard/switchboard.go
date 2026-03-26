@@ -302,6 +302,9 @@ func (m Model) FeedScrollOffset() int { return m.feedScrollOffset }
 // FeedCursor returns the current feed cursor position — used in tests.
 func (m Model) FeedCursor() int { return m.feedCursor }
 
+// FeedFocused returns the feed focus state — used in tests.
+func (m Model) FeedFocused() bool { return m.feedFocused }
+
 // BuildAgentSection is an exported wrapper for tests.
 func (m Model) BuildAgentSection(w int) []string { return m.buildAgentSection(w) }
 
@@ -693,15 +696,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.feedFocused = false
 			m.launcher.focused = true
 		} else if m.signalBoardFocused {
-			// signalBoard → launcher
+			// signalBoard → feed
 			m.signalBoardFocused = false
-			m.launcher.focused = true
-		} else if m.agent.focused {
-			// agent → feed
-			m.agent.focused = false
 			m.feedFocused = true
 			m.feedCursor = 0
+		} else if m.agent.focused {
+			// agent → signalBoard
+			m.agent.focused = false
+			m.signalBoardFocused = true
 		} else if m.launcher.focused {
+			// launcher → agent
 			m.launcher.focused = false
 			m.agent.focused = true
 		}
