@@ -1867,7 +1867,7 @@ func (m Model) viewActivityFeed(height, width int) string {
 					default: // "pending" or unknown
 						col = aDim
 					}
-					badges = append(badges, col+"["+step.status+"]"+aRst+" "+step.id)
+					badges = append(badges, col+"["+step.status+"] "+step.id+aRst)
 				}
 				badgeLine := "  " + strings.Join(badges, "  ")
 				appendRow(&allLines, badgeLine)
