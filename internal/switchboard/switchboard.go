@@ -1295,9 +1295,10 @@ func (m Model) View() string {
 		return overlayCenter(base, m.viewQuitModalBox(w), w, h)
 	}
 
-	// Agent modal overlay (full-screen replacement).
+	// Agent modal — floating overlay on top of the switchboard.
 	if m.agentModalOpen {
-		return m.viewAgentModal(w, h)
+		base := body + "\n" + m.viewBottomBar(w)
+		return overlayCenter(base, m.viewAgentModalBox(w), w, h)
 	}
 
 	// Delete confirmation — floating overlay on top of the switchboard.
@@ -1405,7 +1406,9 @@ func (m Model) viewDeleteModalBox(w int) string {
 }
 
 // viewAgentModal renders the full-screen agent overlay.
-func (m Model) viewAgentModal(w, h int) string {
+// viewAgentModalBox renders the agent modal box content only. overlayCenter
+// places it over the base view.
+func (m Model) viewAgentModalBox(w int) string {
 	modalW := min(max(w-4, 60), 90)
 	if w < 62 {
 		modalW = w
@@ -1530,24 +1533,7 @@ func (m Model) viewAgentModal(w, h int) string {
 	rows = append(rows, boxRow(hintStr, modalW))
 	rows = append(rows, boxBot(modalW))
 
-	// Center horizontally.
-	startCol := max((w-modalW)/2, 0)
-	pad := strings.Repeat(" ", startCol)
-	var out []string
-	for _, r := range rows {
-		out = append(out, pad+r)
-	}
-	// Pad vertically to fill the screen.
-	startRow := max((h-len(rows))/2, 0)
-	var screen []string
-	for range startRow {
-		screen = append(screen, "")
-	}
-	screen = append(screen, out...)
-	for len(screen) < h {
-		screen = append(screen, "")
-	}
-	return strings.Join(screen, "\n")
+	return strings.Join(rows, "\n")
 }
 
 // sectionLabel returns a section header with focus indicator.
