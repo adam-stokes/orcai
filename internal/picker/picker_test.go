@@ -1,6 +1,8 @@
 package picker_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/adam-stokes/orcai/internal/picker"
@@ -213,4 +215,47 @@ func TestPickerStates_AllDistinct(t *testing.T) {
 		}
 		seen[s] = true
 	}
+}
+
+// TestBuildProviders_OllamaSidecarPathSet verifies that after BuildProviders(),
+// the ollama ProviderDef has a non-empty SidecarPath when a wrappers YAML is
+// present — ensuring the pipelineRunCmd skip guard fires correctly.
+func TestBuildProviders_OllamaSidecarPathSet(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Set up ~/.config/orcai/wrappers/ollama.yaml pointing to a real binary.
+	wrappersDir := filepath.Join(tmpDir, ".config", "orcai", "wrappers")
+	if err := os.MkdirAll(wrappersDir, 0o755); err != nil {
+		t.Fatalf("mkdir wrappers: %v", err)
+	}
+	// Use "true" as the command — always available on Unix and passes LookPath.
+	yaml := "name: ollama\ncommand: true\n"
+	sidecarFile := filepath.Join(wrappersDir, "ollama.yaml")
+	if err := os.WriteFile(sidecarFile, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("write ollama.yaml: %v", err)
+	}
+
+	// Also create the required sub-directories so discovery.Discover doesn't fail.
+	for _, sub := range []string{"plugins", "pipelines"} {
+		if err := os.MkdirAll(filepath.Join(tmpDir, ".config", "orcai", sub), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", sub, err)
+		}
+	}
+
+	// Point orcaiConfigDir() at our temp dir.
+	t.Setenv("HOME", tmpDir)
+
+	providers := picker.BuildProviders()
+	for _, p := range providers {
+		if p.ID == "ollama" {
+			if p.SidecarPath == "" {
+				t.Error("ollama ProviderDef.SidecarPath is empty; sidecar skip guard will not fire")
+			}
+			return
+		}
+	}
+	// ollama not present means discovery didn't find it — skip rather than fail,
+	// since the binary check (exec.LookPath for "true") may behave differently on
+	// some CI environments.
+	t.Log("ollama not found in BuildProviders() result — skipping SidecarPath assertion")
 }

@@ -181,6 +181,12 @@ func buildProviders() []ProviderDef {
 		}
 	}
 
+	// Build a name→extraEntry lookup so static providers can inherit SidecarPath.
+	extrasByName := make(map[string]extraEntry, len(extras))
+	for _, e := range extras {
+		extrasByName[e.name] = e
+	}
+
 	var out []ProviderDef
 	for _, p := range Providers {
 		switch p.ID {
@@ -206,6 +212,12 @@ func buildProviders() []ProviderDef {
 			if cmd := sidecarData[p.ID].Command; cmd != "" {
 				p.Command = cmd
 			}
+		}
+		// Propagate SidecarPath from the discovery layer so that the
+		// pipelineRunCmd sidecar-skip guard fires correctly and avoids
+		// "already registered" warnings.
+		if e, ok := extrasByName[p.ID]; ok && p.SidecarPath == "" {
+			p.SidecarPath = e.sidecarPath
 		}
 		out = append(out, p)
 	}
