@@ -3,6 +3,8 @@ package switchboard
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // SignalBoard tracks state for the SIGNAL BOARD panel.
@@ -51,7 +53,7 @@ func (m Model) buildSignalBoard(height, width int) []string {
 	}
 
 	if len(filtered) == 0 {
-		lines = append(lines, boxRow(aDim+"  no jobs"+aRst, 9, width))
+		lines = append(lines, boxRow(aDim+"  no jobs"+aRst, width))
 	} else {
 		shown := filtered
 		if len(shown) > bodyH {
@@ -94,7 +96,7 @@ func (m Model) buildSignalBoard(height, width int) []string {
 
 			rowContent := fmt.Sprintf("  [%s] %s  %-*s  %s",
 				led, ts, maxTitleLen, title, statusLabel)
-			rowVis := visLen(rowContent)
+			rowVis := lipgloss.Width(rowContent)
 
 			if i == m.signalBoard.selectedIdx && m.signalBoardFocused {
 				// Highlight selected row.
@@ -103,14 +105,14 @@ func (m Model) buildSignalBoard(height, width int) []string {
 				selRow := aBC + "│" + aSelBg + aWht + rowContent + strings.Repeat(" ", pad) + aRst + aBC + "│" + aRst
 				lines = append(lines, selRow)
 			} else {
-				lines = append(lines, boxRow(rowContent, rowVis, width))
+				lines = append(lines, boxRow(rowContent, width))
 			}
 		}
 	}
 
 	// Pad to fill height.
 	for len(lines) < height-1 {
-		lines = append(lines, boxRow("", 0, width))
+		lines = append(lines, boxRow("", width))
 	}
 	lines = append(lines, boxBot(width))
 

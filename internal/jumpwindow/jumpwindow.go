@@ -5,7 +5,9 @@ package jumpwindow
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -114,6 +116,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					target = w.index
 				}
 				exec.Command("tmux", "select-window", "-t", target).Run() //nolint:errcheck
+			}
+			return m, tea.Quit
+
+		case "e":
+			if len(m.filtered) > 0 && m.selected < len(m.filtered) {
+				openPipelineInEditor(m.filtered[m.selected].name)
 			}
 			return m, tea.Quit
 		}
@@ -227,6 +235,50 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// openPipelineInEditor derives the pipeline YAML path from a display name like
+// "http-json-analyze #5" and opens it in $EDITOR (or vi) via a new tmux window.
+func openPipelineInEditor(displayName string) {
+	// Strip " #N" suffix added by listWindows.
+	label := displayName
+	if idx := strings.LastIndex(label, "  #"); idx >= 0 {
+		label = label[:idx]
+	}
+	if label == "" {
+		return
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	pipelineDir := filepath.Join(home, ".config", "orcai", "pipelines")
+	path := filepath.Join(pipelineDir, label+".pipeline.yaml")
+	if _, err := os.Stat(path); err != nil {
+		return // file doesn't exist — not a pipeline entry
+	}
+
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	out, err := exec.Command("tmux", "display-message", "-p", "#S").Output()
+	if err != nil {
+		return
+	}
+	session := strings.TrimSpace(string(out))
+	if session == "" {
+		return
+	}
+	out2, err2 := exec.Command("tmux", "new-window", "-d", "-P", "-F", "#{window_id}", "-t", session+":", "-n", "orcai-edit", editor+" "+path).Output()
+	if err2 != nil {
+		return
+	}
+	winID := strings.TrimSpace(string(out2))
+	if winID != "" {
+		exec.Command("tmux", "select-window", "-t", session+":"+winID).Run() //nolint:errcheck
+	}
 }
 
 // Run starts the jump-window popup as a bubbletea program.

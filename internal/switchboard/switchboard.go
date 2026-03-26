@@ -14,12 +14,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
+	"github.com/muesli/ansi"
+	"github.com/muesli/reflow/truncate"
 
 	"github.com/adam-stokes/orcai/internal/picker"
 	"github.com/adam-stokes/orcai/internal/plugin"
+	"github.com/adam-stokes/orcai/internal/styles"
 )
 
 // ── ANSI palette — Dracula BBS aesthetic ─────────────────────────────────────
@@ -83,13 +89,13 @@ type launcherSection struct {
 }
 
 type agentSection struct {
-	formStep         int // 0=provider, 1=model, 2=prompt
-	providers        []picker.ProviderDef
-	selectedProvider int
-	selectedModel    int
-	prompt           textarea.Model
-	focused          bool
-	agentScrollOffset int
+	providers              []picker.ProviderDef
+	selectedProvider       int
+	selectedModel          int
+	prompt                 textarea.Model
+	focused                bool
+	agentScrollOffset      int
+	agentModelScrollOffset int
 }
 
 type jobHandle struct {
@@ -172,18 +178,22 @@ type TelemetryMsg struct {
 
 // Model is the BubbleTea model for the Switchboard.
 type Model struct {
-	width              int
-	height             int
-	feed               []feedEntry // ring buffer, cap 200
-	launcher           launcherSection
-	agent              agentSection
-	activeJobs         map[string]*jobHandle
-	feedSelected       int // index into feed for expanded view
-	confirmQuit        bool
-	feedScrollOffset   int
-	feedFocused        bool
-	signalBoard        SignalBoard
-	signalBoardFocused bool
+	width                 int
+	height                int
+	feed                  []feedEntry // ring buffer, cap 200
+	launcher              launcherSection
+	agent                 agentSection
+	activeJobs            map[string]*jobHandle
+	feedSelected          int // index into feed for expanded view
+	confirmQuit           bool
+	feedScrollOffset      int
+	feedFocused           bool
+	signalBoard           SignalBoard
+	signalBoardFocused    bool
+	confirmDelete         bool
+	pendingDeletePipeline string
+	agentModalOpen        bool
+	agentModalFocus       int // 0=provider, 1=model, 2=prompt (within modal)
 }
 
 // New creates a new Switchboard Model, discovering pipelines and providers.
@@ -241,8 +251,12 @@ func NewWithTestProviders() Model {
 // Cursor returns the launcher cursor position — used in tests.
 func (m Model) Cursor() int { return m.launcher.selected }
 
-// AgentFormStep returns the current agent form step — used in tests.
-func (m Model) AgentFormStep() int { return m.agent.formStep }
+// AgentFormStep is kept for backward compatibility — always returns 0.
+// The inline multi-step wizard has been replaced by the agent modal overlay.
+func (m Model) AgentFormStep() int { return 0 }
+
+// AgentModalOpen returns whether the agent modal overlay is open — used in tests.
+func (m Model) AgentModalOpen() bool { return m.agentModalOpen }
 
 // FeedScrollOffset returns the current feed scroll offset — used in tests.
 func (m Model) FeedScrollOffset() int { return m.feedScrollOffset }
@@ -364,8 +378,15 @@ func ScanPipelines(dir string) []string {
 			continue
 		}
 		n := e.Name()
-		if strings.HasSuffix(n, ".pipeline.yaml") {
-			names = append(names, strings.TrimSuffix(n, ".pipeline.yaml"))
+		// Skip dotfiles (e.g. .pipeline.yaml would produce an empty name).
+		if len(n) == 0 || n[0] == '.' {
+			continue
+		}
+		if name := strings.TrimSuffix(n, ".pipeline.yaml"); name != n {
+			// Only add if the suffix was actually present and name is non-empty.
+			if name != "" {
+				names = append(names, name)
+			}
 		}
 	}
 	return names
@@ -561,45 +582,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 
-	// When at the prompt step, forward keys to textarea first,
-	// except for submit (ctrl+s) and navigation (esc, ctrl+c, tab, q).
-	if m.agent.focused && m.agent.formStep == 2 {
+	// Delete confirmation modal.
+	if m.confirmDelete {
 		switch key {
-		case "ctrl+s":
-			return m.handleEnter()
-		case "esc":
-			m.agent.prompt.Blur()
-			m.agent.formStep = 1
-			// If going back to step 1 but no models, go to step 0.
-			prov := m.currentProvider()
-			if prov == nil || len(nonSepModels(prov.Models)) == 0 {
-				m.agent.formStep = 0
-			}
-			return m, nil
-		case "ctrl+c":
-			if len(m.activeJobs) > 0 {
-				m.confirmQuit = true
-				return m, nil
-			}
-			return m, tea.Quit
-		case "tab":
-			// Wrap back to launcher.
-			m.agent.focused = false
-			m.launcher.focused = true
-			m.agent.formStep = 0
-			m.agent.prompt.Blur()
-			return m, nil
-		case "q":
-			if len(m.activeJobs) > 0 {
-				m.confirmQuit = true
-				return m, nil
-			}
-			return m, tea.Quit
+		case "y", "Y":
+			return m.execDeletePipeline()
 		default:
-			var cmd tea.Cmd
-			m.agent.prompt, cmd = m.agent.prompt.Update(msg)
-			return m, cmd
+			m.confirmDelete = false
+			m.pendingDeletePipeline = ""
+			return m, nil
 		}
+	}
+
+	// Agent modal — all keys captured before panel handlers.
+	if m.agentModalOpen {
+		return m.handleAgentModal(msg)
+	}
+
+	// Global focus shortcuts — p focuses pipelines.
+	switch key {
+	case "p":
+		m.launcher.focused = true
+		m.agent.focused = false
+		m.feedFocused = false
+		m.signalBoardFocused = false
+		return m, nil
 	}
 
 	switch key {
@@ -627,15 +634,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.signalBoardFocused = false
 			m.launcher.focused = true
 		} else if m.agent.focused {
-			if m.agent.formStep < 2 {
-				m = m.agentAdvanceStep()
-			} else {
-				// agent (step 2) → signalBoard
-				m.agent.focused = false
-				m.agent.formStep = 0
-				m.agent.prompt.Blur()
-				m.signalBoardFocused = true
-			}
+			// agent → signalBoard
+			m.agent.focused = false
+			m.signalBoardFocused = true
 		} else if m.launcher.focused {
 			m.launcher.focused = false
 			m.agent.focused = true
@@ -683,19 +684,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "k", "up":
 		return m.handleUp(), nil
 
-	case "left":
-		if m.agent.focused && m.agent.formStep > 0 {
-			m.agent.formStep--
-			// If going back to step 1 but provider has no models, skip to 0.
-			if m.agent.formStep == 1 {
-				prov := m.currentProvider()
-				if prov != nil && len(nonSepModels(prov.Models)) == 0 {
-					m.agent.formStep = 0
-				}
-			}
-		}
-		return m, nil
-
 	case "esc":
 		if m.feedFocused {
 			m.feedFocused = false
@@ -705,21 +693,28 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.signalBoardFocused = false
 			m.launcher.focused = true
 		} else if m.agent.focused {
-			if m.agent.formStep > 0 {
-				m.agent.formStep--
-				m.agent.agentScrollOffset = 0
-			} else {
-				m.agent.focused = false
-				m.launcher.focused = true
-			}
+			m.agent.focused = false
+			m.launcher.focused = true
 		}
 		return m, nil
 
-	case "right":
-		if m.agent.focused && m.agent.formStep < 2 {
-			m = m.agentAdvanceStep()
+	// Pipeline CRUD keys (launcher focused).
+	case "n":
+		if m.launcher.focused {
+			return m.handleNewPipeline()
 		}
-		return m, nil
+
+	case "e":
+		if m.launcher.focused && len(m.launcher.pipelines) > 0 {
+			return m.handleEditPipeline()
+		}
+
+	case "d":
+		if m.launcher.focused && len(m.launcher.pipelines) > 0 {
+			m.confirmDelete = true
+			m.pendingDeletePipeline = m.launcher.pipelines[m.launcher.selected]
+			return m, nil
+		}
 
 	case "enter":
 		return m.handleEnter()
@@ -748,19 +743,8 @@ func (m Model) handleDown() Model {
 		return m
 	}
 	if m.agent.focused {
-		switch m.agent.formStep {
-		case 0:
-			if m.agent.selectedProvider < len(m.agent.providers)-1 {
-				m.agent.selectedProvider++
-			}
-		case 1:
-			prov := m.currentProvider()
-			if prov != nil {
-				models := nonSepModels(prov.Models)
-				if m.agent.selectedModel < len(models)-1 {
-					m.agent.selectedModel++
-				}
-			}
+		if m.agent.selectedProvider < len(m.agent.providers)-1 {
+			m.agent.selectedProvider++
 		}
 	}
 	return m
@@ -787,7 +771,45 @@ func (m Model) handleUp() Model {
 		return m
 	}
 	if m.agent.focused {
-		switch m.agent.formStep {
+		if m.agent.selectedProvider > 0 {
+			m.agent.selectedProvider--
+		}
+	}
+	return m
+}
+
+// handleAgentModal routes key events when the agent modal overlay is open.
+func (m Model) handleAgentModal(msg tea.KeyMsg) (Model, tea.Cmd) {
+	key := msg.String()
+	switch key {
+	case "esc", "ctrl+c":
+		m.agentModalOpen = false
+		m.agent.prompt.Blur()
+		return m, nil
+
+	case "ctrl+s":
+		return m.submitAgentJob()
+
+	case "tab":
+		m.agentModalFocus = (m.agentModalFocus + 1) % 3
+		if m.agentModalFocus == 2 {
+			m.agent.prompt.Focus()
+		} else {
+			m.agent.prompt.Blur()
+		}
+		return m, nil
+
+	case "shift+tab":
+		m.agentModalFocus = (m.agentModalFocus + 2) % 3
+		if m.agentModalFocus == 2 {
+			m.agent.prompt.Focus()
+		} else {
+			m.agent.prompt.Blur()
+		}
+		return m, nil
+
+	case "up", "k":
+		switch m.agentModalFocus {
 		case 0:
 			if m.agent.selectedProvider > 0 {
 				m.agent.selectedProvider--
@@ -797,26 +819,107 @@ func (m Model) handleUp() Model {
 				m.agent.selectedModel--
 			}
 		}
+		return m, nil
+
+	case "down", "j":
+		switch m.agentModalFocus {
+		case 0:
+			if m.agent.selectedProvider < len(m.agent.providers)-1 {
+				m.agent.selectedProvider++
+			}
+		case 1:
+			prov := m.currentProvider()
+			if prov != nil {
+				models := nonSepModels(prov.Models)
+				if m.agent.selectedModel < len(models)-1 {
+					m.agent.selectedModel++
+				}
+			}
+		}
+		return m, nil
+
+	default:
+		if m.agentModalFocus == 2 {
+			var cmd tea.Cmd
+			m.agent.prompt, cmd = m.agent.prompt.Update(msg)
+			return m, cmd
+		}
 	}
-	return m
+	return m, nil
 }
 
-func (m Model) agentAdvanceStep() Model {
-	if m.agent.formStep == 0 {
-		prov := m.currentProvider()
-		if prov == nil || len(nonSepModels(prov.Models)) == 0 {
-			m.agent.formStep = 2
-			m.agent.prompt.Focus()
-		} else {
-			m.agent.formStep = 1
-		}
-		m.agent.agentScrollOffset = 0
-	} else if m.agent.formStep == 1 {
-		m.agent.formStep = 2
-		m.agent.prompt.Focus()
-		m.agent.agentScrollOffset = 0
+// handleNewPipeline creates a template pipeline file and opens it in $EDITOR.
+func (m Model) handleNewPipeline() (Model, tea.Cmd) {
+	dir := pipelinesDir()
+	if dir == "" {
+		return m, nil
 	}
-	return m
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return m, nil
+	}
+	name := fmt.Sprintf("new-pipeline-%d", time.Now().Unix())
+	path := filepath.Join(dir, name+".pipeline.yaml")
+	template := "name: " + name + "\nsteps:\n  - name: hello\n    run: echo \"hello world\"\n"
+	if err := os.WriteFile(path, []byte(template), 0o600); err != nil {
+		return m, nil
+	}
+	openEditorInWindow(path)
+	// Refresh pipeline list so the new entry is immediately visible.
+	m.launcher.pipelines = ScanPipelines(dir)
+	if m.launcher.selected >= len(m.launcher.pipelines) && m.launcher.selected > 0 {
+		m.launcher.selected = max(len(m.launcher.pipelines)-1, 0)
+	}
+	return m, nil
+}
+
+// handleEditPipeline opens the selected pipeline's YAML file in $EDITOR.
+func (m Model) handleEditPipeline() (Model, tea.Cmd) {
+	if len(m.launcher.pipelines) == 0 {
+		return m, nil
+	}
+	name := m.launcher.pipelines[m.launcher.selected]
+	path := filepath.Join(pipelinesDir(), name+".pipeline.yaml")
+	openEditorInWindow(path)
+	return m, nil
+}
+
+// execDeletePipeline removes the pending pipeline file and refreshes the list.
+func (m Model) execDeletePipeline() (Model, tea.Cmd) {
+	m.confirmDelete = false
+	name := m.pendingDeletePipeline
+	m.pendingDeletePipeline = ""
+	if name == "" {
+		return m, nil
+	}
+	path := filepath.Join(pipelinesDir(), name+".pipeline.yaml")
+	os.Remove(path) //nolint:errcheck
+	m.launcher.pipelines = ScanPipelines(pipelinesDir())
+	if m.launcher.selected >= len(m.launcher.pipelines) {
+		m.launcher.selected = max(len(m.launcher.pipelines)-1, 0)
+	}
+	return m, nil
+}
+
+// openEditorInWindow opens path in $EDITOR (or vi) via a new tmux window and
+// switches the user to it immediately.
+func openEditorInWindow(path string) {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	session := currentTmuxSession()
+	if session == "" {
+		return
+	}
+	cmd := editor + " " + path
+	out, err := exec.Command("tmux", "new-window", "-d", "-P", "-F", "#{window_id}", "-t", session+":", "-n", "orcai-edit", cmd).Output()
+	if err != nil {
+		return
+	}
+	winID := strings.TrimSpace(string(out))
+	if winID != "" {
+		exec.Command("tmux", "select-window", "-t", session+":"+winID).Run() //nolint:errcheck
+	}
 }
 
 func (m Model) handleEnter() (Model, tea.Cmd) {
@@ -890,96 +993,102 @@ func (m Model) handleEnter() (Model, tea.Cmd) {
 		return m, drainChan(ch)
 	}
 
-	// Agent section: advance form or submit.
+	// Agent section: open modal overlay.
 	if m.agent.focused {
-		if m.agent.formStep < 2 {
-			m = m.agentAdvanceStep()
-			return m, nil
+		if m.width >= 62 {
+			m.agentModalOpen = true
+			m.agentModalFocus = 0 // start at provider so user confirms selection
+			m.agent.prompt.Blur()
 		}
-		// Step 2: submit.
-		// Enforce parallel job cap.
-		if len(m.activeJobs) >= maxParallelJobs {
-			feedID := fmt.Sprintf("warn-%d", time.Now().UnixNano())
-			warnEntry := feedEntry{
-				id:     feedID,
-				title:  "warning",
-				status: FeedFailed,
-				ts:     time.Now(),
-				lines:  []string{"max parallel jobs reached (8)"},
-			}
-			m.feed = append([]feedEntry{warnEntry}, m.feed...)
-			if len(m.feed) > 200 {
-				m.feed = m.feed[:200]
-			}
-			return m, nil
-		}
-		input := strings.TrimSpace(m.agent.prompt.Value())
-		if input == "" {
-			return m, nil
-		}
-		prov := m.currentProvider()
-		if prov == nil {
-			return m, nil
-		}
-
-		var modelID string
-		models := nonSepModels(prov.Models)
-		if len(models) > 0 && m.agent.selectedModel < len(models) {
-			modelID = models[m.agent.selectedModel].ID
-		}
-
-		title := "agent: " + prov.ID
-		if modelID != "" {
-			title += "/" + modelID
-		}
-
-		feedID := fmt.Sprintf("agent-%d", time.Now().UnixNano())
-		entry := feedEntry{
-			id:     feedID,
-			title:  title,
-			status: FeedRunning,
-			ts:     time.Now(),
-		}
-		m.feed = append([]feedEntry{entry}, m.feed...)
-		if len(m.feed) > 200 {
-			m.feed = m.feed[:200]
-		}
-		m.feedSelected = 0
-		m.feedScrollOffset = 0
-
-		// Agent runs in-process; window shows live output via tail.
-		windowName, logFile, _ := createJobWindow(feedID, "", title)
-		entry.tmuxWindow = windowName
-		entry.logFile = logFile
-		m.feed[0] = entry
-
-		provArgs := picker.PipelineLaunchArgs(prov.ID)
-		binary := prov.Command
-		if binary == "" {
-			binary = prov.ID
-		}
-		adapter := plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", binary, provArgs...)
-		vars := map[string]string{}
-		if modelID != "" {
-			vars["model"] = modelID
-		}
-
-		ch := make(chan tea.Msg, 256)
-		_, cancel := context.WithCancel(context.Background())
-		m.activeJobs[feedID] = &jobHandle{id: feedID, cancel: cancel, ch: ch, tmuxWindow: windowName, logFile: logFile}
-
-		cmd := runAgentCmdCh(adapter, input, vars, feedID, ch, cancel)
-		drain := drainChan(ch)
-
-		// Reset form after submission.
-		m.agent.prompt.SetValue("")
-		m.agent.formStep = 0
-		m.agent.prompt.Blur()
-
-		return m, tea.Batch(cmd, drain)
+		return m, nil
 	}
 
 	return m, nil
+}
+
+// submitAgentJob submits the agent job from the modal overlay.
+func (m Model) submitAgentJob() (Model, tea.Cmd) {
+	input := strings.TrimSpace(m.agent.prompt.Value())
+	if input == "" {
+		return m, nil
+	}
+	prov := m.currentProvider()
+	if prov == nil {
+		return m, nil
+	}
+
+	// Enforce parallel job cap.
+	if len(m.activeJobs) >= maxParallelJobs {
+		feedID := fmt.Sprintf("warn-%d", time.Now().UnixNano())
+		warnEntry := feedEntry{
+			id:     feedID,
+			title:  "warning",
+			status: FeedFailed,
+			ts:     time.Now(),
+			lines:  []string{"max parallel jobs reached (8)"},
+		}
+		m.feed = append([]feedEntry{warnEntry}, m.feed...)
+		if len(m.feed) > 200 {
+			m.feed = m.feed[:200]
+		}
+		return m, nil
+	}
+
+	var modelID string
+	models := nonSepModels(prov.Models)
+	if len(models) > 0 && m.agent.selectedModel < len(models) {
+		modelID = models[m.agent.selectedModel].ID
+	}
+
+	title := "agent: " + prov.ID
+	if modelID != "" {
+		title += "/" + modelID
+	}
+
+	feedID := fmt.Sprintf("agent-%d", time.Now().UnixNano())
+	entry := feedEntry{
+		id:     feedID,
+		title:  title,
+		status: FeedRunning,
+		ts:     time.Now(),
+	}
+	m.feed = append([]feedEntry{entry}, m.feed...)
+	if len(m.feed) > 200 {
+		m.feed = m.feed[:200]
+	}
+	m.feedSelected = 0
+	m.feedScrollOffset = 0
+
+	// Agent runs in-process; window shows live output via tail.
+	windowName, logFile, _ := createJobWindow(feedID, "", title)
+	entry.tmuxWindow = windowName
+	entry.logFile = logFile
+	m.feed[0] = entry
+
+	provArgs := picker.PipelineLaunchArgs(prov.ID)
+	binary := prov.Command
+	if binary == "" {
+		binary = prov.ID
+	}
+	adapter := plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", binary, provArgs...)
+	vars := map[string]string{}
+	if modelID != "" {
+		vars["model"] = modelID
+	}
+
+	ch := make(chan tea.Msg, 256)
+	_, cancel := context.WithCancel(context.Background())
+	m.activeJobs[feedID] = &jobHandle{id: feedID, cancel: cancel, ch: ch, tmuxWindow: windowName, logFile: logFile}
+
+	cmd := runAgentCmdCh(adapter, input, vars, feedID, ch, cancel)
+	drain := drainChan(ch)
+
+	// Close modal and reset prompt after submission.
+	m.agentModalOpen = false
+	m.agent.prompt.SetValue("")
+	m.agent.prompt.Blur()
+
+	return m, tea.Batch(cmd, drain)
 }
 
 // runAgentCmdCh starts CliAdapter.Execute in a goroutine, streaming output to ch.
@@ -1182,10 +1291,271 @@ func (m Model) View() string {
 	body := strings.Join(rows, "\n")
 
 	if m.confirmQuit {
-		return body + "\n" + aPnk + aBld + " Job is running. Quit anyway? (y/N) " + aRst
+		base := body + "\n" + m.viewBottomBar(w)
+		return overlayCenter(base, m.viewQuitModalBox(w), w, h)
+	}
+
+	// Agent modal overlay (full-screen replacement).
+	if m.agentModalOpen {
+		return m.viewAgentModal(w, h)
+	}
+
+	// Delete confirmation — floating overlay on top of the switchboard.
+	if m.confirmDelete {
+		base := body + "\n" + m.viewBottomBar(w)
+		return overlayCenter(base, m.viewDeleteModalBox(w), w, h)
 	}
 
 	return body + "\n" + m.viewBottomBar(w)
+}
+
+// viewQuitModalBox renders the quit confirmation popup box.
+func (m Model) viewQuitModalBox(w int) string {
+	jobs := len(m.activeJobs)
+	jobWord := "job"
+	if jobs != 1 {
+		jobWord = "jobs"
+	}
+
+	innerW := 44
+	if innerW+4 > w {
+		innerW = max(w-4, 10)
+	}
+	outerW := innerW + 2
+
+	headerStyle := lipgloss.NewStyle().
+		Background(styles.Pink).
+		Foreground(styles.Bg).
+		Bold(true).
+		Width(innerW).
+		Padding(0, 1)
+
+	rowStyle := func(fg lipgloss.Color) lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(fg).Width(innerW).Padding(0, 1)
+	}
+
+	rows := []string{
+		headerStyle.Render("ORCAI  Quit?"),
+		rowStyle(styles.Fg).Render(fmt.Sprintf("%d %s still running.", jobs, jobWord)),
+		"",
+		rowStyle(styles.Fg).Render(
+			lipgloss.NewStyle().Foreground(styles.Cyan).Render("[y]") + "es   " +
+				lipgloss.NewStyle().Foreground(styles.Comment).Render("[n]") + "o / esc",
+		),
+	}
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Pink).
+		Width(outerW).
+		Render(strings.Join(rows, "\n"))
+}
+
+// viewDeleteModalBox renders just the delete confirmation popup box (no
+// positioning). overlayCenter places it over the base view.
+func (m Model) viewDeleteModalBox(w int) string {
+	name := m.pendingDeletePipeline
+	fullPath := filepath.Join(pipelinesDir(), name+".pipeline.yaml")
+
+	// Shorten path for display: replace $HOME with ~.
+	displayPath := fullPath
+	if home, err := os.UserHomeDir(); err == nil {
+		displayPath = strings.Replace(fullPath, home, "~", 1)
+	}
+
+	// innerW = text content width (row Width). Rows are rendered at innerW,
+	// then Padding(0,1) adds 2, giving each row a total of innerW+2.
+	// The outer border uses Width(innerW+2) so it matches exactly.
+	innerW := max(len(displayPath)+4, 48)
+	if innerW > 68 {
+		innerW = 68
+	}
+	if innerW+4 > w { // +4 = 2 padding + 2 border
+		innerW = max(w-4, 10)
+	}
+	outerW := innerW + 2 // +2 for Padding(0,1) on each row
+
+	rowStyle := func(fg lipgloss.Color) lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(fg).Width(innerW).Padding(0, 1)
+	}
+
+	headerStyle := lipgloss.NewStyle().
+		Background(styles.Purple).
+		Foreground(styles.Bg).
+		Bold(true).
+		Width(innerW).
+		Padding(0, 1)
+
+	rows := []string{
+		headerStyle.Render("ORCAI  Delete Pipeline"),
+		rowStyle(styles.Pink).Bold(true).Render(name),
+		rowStyle(styles.Comment).Render(displayPath),
+		"",
+		rowStyle(styles.Fg).Render(
+			lipgloss.NewStyle().Foreground(styles.Cyan).Render("[y]") + "es   " +
+				lipgloss.NewStyle().Foreground(styles.Comment).Render("[n]") + "o / esc",
+		),
+	}
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Purple).
+		Width(outerW).
+		Render(strings.Join(rows, "\n"))
+}
+
+// viewAgentModal renders the full-screen agent overlay.
+func (m Model) viewAgentModal(w, h int) string {
+	modalW := min(max(w-4, 60), 90)
+	if w < 62 {
+		modalW = w
+	}
+
+	hint := func(key, desc string) string {
+		return aBrC + key + aDim + " " + desc + aRst
+	}
+	sep := aDim + " · " + aRst
+
+	var rows []string
+	rows = append(rows, boxTop(modalW, "AGENT", aPur))
+
+	// ── PROVIDER section ──────────────────────────────────────────────────────
+	provHeader := "  " + sectionLabel("PROVIDER", m.agentModalFocus == 0)
+	rows = append(rows, boxRow(provHeader, modalW))
+	if len(m.agent.providers) == 0 {
+		rows = append(rows, boxRow(aDim+"  no providers"+aRst, modalW))
+	} else {
+		const provWindow = 4
+		offset := m.agent.agentScrollOffset
+		if m.agent.selectedProvider < offset {
+			offset = m.agent.selectedProvider
+		} else if m.agent.selectedProvider >= offset+provWindow {
+			offset = m.agent.selectedProvider - provWindow + 1
+		}
+		end := min(offset+provWindow, len(m.agent.providers))
+		for i := offset; i < end; i++ {
+			prov := m.agent.providers[i]
+			label := prov.Label
+			if label == "" {
+				label = prov.ID
+			}
+			maxLen := max(modalW-6, 1)
+			if len(label) > maxLen {
+				label = label[:maxLen-1] + "…"
+			}
+			contentVis := 4 + len(label)
+			if i == m.agent.selectedProvider {
+				sel := aBrC
+				if m.agentModalFocus == 0 {
+					sel = aSelBg + aWht
+				}
+				content := sel + "  > " + label + aRst
+				rows = append(rows, aBC+"│"+content+strings.Repeat(" ", max(modalW-2-contentVis, 0))+aBC+"│"+aRst)
+			} else {
+				content := aDim + "    " + aBC + label + aRst
+				rows = append(rows, boxRow(content, modalW))
+			}
+		}
+	}
+
+	// ── MODEL section ─────────────────────────────────────────────────────────
+	rows = append(rows, boxRow("", modalW))
+	modelHeader := "  " + sectionLabel("MODEL", m.agentModalFocus == 1)
+	rows = append(rows, boxRow(modelHeader, modalW))
+	prov := m.currentProvider()
+	if prov == nil {
+		rows = append(rows, boxRow(aDim+"  select a provider first"+aRst, modalW))
+	} else {
+		models := nonSepModels(prov.Models)
+		if len(models) == 0 {
+			rows = append(rows, boxRow(aDim+"  no models"+aRst, modalW))
+		} else {
+			const modelWindow = 4
+			offset := m.agent.agentModelScrollOffset
+			if m.agent.selectedModel < offset {
+				offset = m.agent.selectedModel
+			} else if m.agent.selectedModel >= offset+modelWindow {
+				offset = m.agent.selectedModel - modelWindow + 1
+			}
+			end := min(offset+modelWindow, len(models))
+			for i := offset; i < end; i++ {
+				mo := models[i]
+				label := mo.Label
+				if label == "" {
+					label = mo.ID
+				}
+				maxLen := max(modalW-6, 1)
+				if len(label) > maxLen {
+					label = label[:maxLen-1] + "…"
+				}
+				contentVis := 4 + len(label)
+				if i == m.agent.selectedModel {
+					sel := aBrC
+					if m.agentModalFocus == 1 {
+						sel = aSelBg + aWht
+					}
+					content := sel + "  > " + label + aRst
+					rows = append(rows, aBC+"│"+content+strings.Repeat(" ", max(modalW-2-contentVis, 0))+aBC+"│"+aRst)
+				} else {
+					content := aDim + "    " + aBC + label + aRst
+					rows = append(rows, boxRow(content, modalW))
+				}
+			}
+		}
+	}
+
+	// ── PROMPT section ────────────────────────────────────────────────────────
+	rows = append(rows, boxRow("", modalW))
+	promptHeader := "  " + sectionLabel("PROMPT", m.agentModalFocus == 2)
+	rows = append(rows, boxRow(promptHeader, modalW))
+	if len(m.activeJobs) > 0 {
+		warn := aPnk + fmt.Sprintf("  ⚠ %d job(s) running", len(m.activeJobs)) + aRst
+		rows = append(rows, boxRow(warn, modalW))
+	}
+	promptInnerW := max(modalW-6, 10)
+	m.agent.prompt.SetWidth(promptInnerW)
+	for _, pLine := range strings.Split(m.agent.prompt.View(), "\n") {
+		pLine = strings.TrimRight(pLine, "\r")
+		padded := "  " + pLine
+		rows = append(rows, boxRow(padded, modalW))
+	}
+
+	// ── Hint bar ──────────────────────────────────────────────────────────────
+	rows = append(rows, boxRow("", modalW))
+	hintStr := "  " + strings.Join([]string{
+		hint("tab", "focus"),
+		hint("ctrl+s", "submit"),
+		hint("esc", "close"),
+	}, sep)
+	rows = append(rows, boxRow(hintStr, modalW))
+	rows = append(rows, boxBot(modalW))
+
+	// Center horizontally.
+	startCol := max((w-modalW)/2, 0)
+	pad := strings.Repeat(" ", startCol)
+	var out []string
+	for _, r := range rows {
+		out = append(out, pad+r)
+	}
+	// Pad vertically to fill the screen.
+	startRow := max((h-len(rows))/2, 0)
+	var screen []string
+	for range startRow {
+		screen = append(screen, "")
+	}
+	screen = append(screen, out...)
+	for len(screen) < h {
+		screen = append(screen, "")
+	}
+	return strings.Join(screen, "\n")
+}
+
+// sectionLabel returns a section header with focus indicator.
+func sectionLabel(title string, focused bool) string {
+	if focused {
+		return aBrC + aBld + title + aRst
+	}
+	return aDim + title + aRst
 }
 
 func (m Model) leftColWidth() int {
@@ -1259,7 +1629,7 @@ func (m Model) buildLauncherSection(w int) []string {
 	rows := []string{boxTop(w, header, borderColor)}
 
 	if len(m.launcher.pipelines) == 0 {
-		rows = append(rows, boxRow(aDim+"  no pipelines saved"+aRst, 20, w))
+		rows = append(rows, boxRow(aDim+"  no pipelines saved"+aRst, w))
 	} else {
 		for i, name := range m.launcher.pipelines {
 			maxNameLen := max(w-4, 1)
@@ -1273,7 +1643,7 @@ func (m Model) buildLauncherSection(w int) []string {
 				rows = append(rows, aBC+"│"+content+strings.Repeat(" ", max(w-2-contentVis, 0))+aBC+"│"+aRst)
 			} else {
 				content := aBrC + "  " + aBC + displayName + aRst
-				rows = append(rows, boxRow(content, contentVis, w))
+				rows = append(rows, boxRow(content, w))
 			}
 		}
 	}
@@ -1282,8 +1652,8 @@ func (m Model) buildLauncherSection(w int) []string {
 	return rows
 }
 
-// buildAgentSection renders the Agent Runner inline form with fixed height.
-// Always returns agentInnerHeight + 2 lines (top border + body + bottom border).
+// buildAgentSection renders a compact Agent Runner box showing the provider list.
+// The full form (model selection + prompt) lives in the modal overlay.
 func (m Model) buildAgentSection(w int) []string {
 	borderColor := aBC
 	if m.agent.focused {
@@ -1292,160 +1662,43 @@ func (m Model) buildAgentSection(w int) []string {
 
 	rows := []string{boxTop(w, "AGENT RUNNER", borderColor)}
 
-	var bodyRows []string
-
 	if len(m.agent.providers) == 0 {
-		bodyRows = append(bodyRows, boxRow(aDim+"  no providers available"+aRst, 23, w))
+		rows = append(rows, boxRow(aDim+"  no providers available"+aRst, w))
 	} else {
-		switch m.agent.formStep {
-		case 0:
-			// Window size for provider list (full agentInnerHeight rows).
-			windowSize := agentInnerHeight
-			offset := m.agent.agentScrollOffset
-			// Ensure selected item scrolls into view.
-			if m.agent.selectedProvider < offset {
-				offset = m.agent.selectedProvider
-			} else if m.agent.selectedProvider >= offset+windowSize {
-				offset = m.agent.selectedProvider - windowSize + 1
+		// Show provider list (scrollable).
+		windowSize := agentInnerHeight
+		offset := m.agent.agentScrollOffset
+		if m.agent.selectedProvider < offset {
+			offset = m.agent.selectedProvider
+		} else if m.agent.selectedProvider >= offset+windowSize {
+			offset = m.agent.selectedProvider - windowSize + 1
+		}
+		end := min(offset+windowSize, len(m.agent.providers))
+		for i := offset; i < end; i++ {
+			prov := m.agent.providers[i]
+			label := prov.Label
+			if label == "" {
+				label = prov.ID
 			}
-			end := offset + windowSize
-			if end > len(m.agent.providers) {
-				end = len(m.agent.providers)
+			maxLen := max(w-5, 1)
+			if len(label) > maxLen {
+				label = label[:maxLen-1] + "…"
 			}
-			for i := offset; i < end; i++ {
-				prov := m.agent.providers[i]
-				label := prov.Label
-				if label == "" {
-					label = prov.ID
+			contentVis := 4 + len(label)
+			if i == m.agent.selectedProvider {
+				sel := aBrC
+				if m.agent.focused {
+					sel = aSelBg + aWht
 				}
-				maxLen := max(w-5, 1)
-				if len(label) > maxLen {
-					label = label[:maxLen-1] + "…"
-				}
-				contentVis := 4 + len(label)
-				if i == m.agent.selectedProvider {
-					sel := ""
-					if m.agent.focused {
-						sel = aSelBg + aWht
-					} else {
-						sel = aBrC
-					}
-					content := sel + "  > " + label + aRst
-					bodyRows = append(bodyRows, aBC+"│"+content+strings.Repeat(" ", max(w-2-contentVis, 0))+aBC+"│"+aRst)
-				} else {
-					content := aDim + "    " + aBC + label + aRst
-					bodyRows = append(bodyRows, boxRow(content, contentVis, w))
-				}
-			}
-
-		case 1:
-			prov := m.currentProvider()
-			var models []picker.ModelOption
-			if prov != nil {
-				models = nonSepModels(prov.Models)
-			}
-			// Breadcrumb: show which provider was selected.
-			provLabel := ""
-			if prov != nil {
-				provLabel = prov.Label
-				if provLabel == "" {
-					provLabel = prov.ID
-				}
-			}
-			crumb := "  " + aDim + provLabel + aRst + aBrC + " > model" + aRst
-			bodyRows = append(bodyRows, boxRow(crumb, 2+len(provLabel)+9, w))
-
-			// Window size for model list (agentInnerHeight - 1 row for breadcrumb).
-			windowSize := agentInnerHeight - 1
-			if len(models) == 0 {
-				bodyRows = append(bodyRows, boxRow(aDim+"  no models"+aRst, 11, w))
+				content := sel + "  > " + label + aRst
+				rows = append(rows, aBC+"│"+content+strings.Repeat(" ", max(w-2-contentVis, 0))+aBC+"│"+aRst)
 			} else {
-				offset := m.agent.agentScrollOffset
-				if m.agent.selectedModel < offset {
-					offset = m.agent.selectedModel
-				} else if m.agent.selectedModel >= offset+windowSize {
-					offset = m.agent.selectedModel - windowSize + 1
-				}
-				end := offset + windowSize
-				if end > len(models) {
-					end = len(models)
-				}
-				for i := offset; i < end; i++ {
-					mo := models[i]
-					label := mo.Label
-					if label == "" {
-						label = mo.ID
-					}
-					maxLen := max(w-5, 1)
-					if len(label) > maxLen {
-						label = label[:maxLen-1] + "…"
-					}
-					contentVis := 4 + len(label)
-					if i == m.agent.selectedModel && m.agent.focused {
-						content := aSelBg + aWht + "  > " + label + aRst
-						bodyRows = append(bodyRows, aBC+"│"+content+strings.Repeat(" ", max(w-2-contentVis, 0))+aBC+"│"+aRst)
-					} else {
-						content := aDim + "    " + aBC + label + aRst
-						bodyRows = append(bodyRows, boxRow(content, contentVis, w))
-					}
-				}
-			}
-
-		case 2:
-			// Breadcrumb: show provider and model selection.
-			prov := m.currentProvider()
-			provLabel := ""
-			if prov != nil {
-				provLabel = prov.Label
-				if provLabel == "" {
-					provLabel = prov.ID
-				}
-			}
-			models := []picker.ModelOption{}
-			if prov != nil {
-				models = nonSepModels(prov.Models)
-			}
-			modelLabel := ""
-			if len(models) > 0 && m.agent.selectedModel < len(models) {
-				modelLabel = models[m.agent.selectedModel].Label
-				if modelLabel == "" {
-					modelLabel = models[m.agent.selectedModel].ID
-				}
-			}
-			crumb := "  " + aDim + provLabel
-			if modelLabel != "" {
-				crumb += " > " + modelLabel
-			}
-			crumb += aRst + aBrC + " > prompt" + aRst
-			crumbVis := 2 + len(provLabel) + len(modelLabel) + 9
-			if modelLabel != "" {
-				crumbVis += 3 // " > "
-			}
-			bodyRows = append(bodyRows, boxRow(crumb, crumbVis, w))
-			if len(m.activeJobs) > 0 {
-				warn := aPnk + fmt.Sprintf("  ⚠ %d job(s) running — ctrl+c to cancel", len(m.activeJobs)) + aRst
-				bodyRows = append(bodyRows, boxRow(warn, visLen(warn), w))
-			} else {
-				bodyRows = append(bodyRows, boxRow(aBrC+"  Prompt: (ctrl+s to submit)"+aRst, 27, w))
-				for _, pLine := range strings.Split(m.agent.prompt.View(), "\n") {
-					// textarea may use \r\n; strip \r to avoid cursor-reset corruption.
-					pLine = strings.TrimRight(pLine, "\r")
-					padded := "  " + pLine
-					bodyRows = append(bodyRows, boxRow(padded, visLen(padded), w))
-				}
+				content := aDim + "    " + aBC + label + aRst
+				rows = append(rows, boxRow(content, w))
 			}
 		}
 	}
 
-	// Pad or clip body rows to exactly agentInnerHeight.
-	for len(bodyRows) < agentInnerHeight {
-		bodyRows = append(bodyRows, boxRow("", 0, w))
-	}
-	if len(bodyRows) > agentInnerHeight {
-		bodyRows = bodyRows[:agentInnerHeight]
-	}
-
-	rows = append(rows, bodyRows...)
 	rows = append(rows, boxBot(w))
 	return rows
 }
@@ -1467,7 +1720,7 @@ func (m Model) viewActivityFeed(height, width int) string {
 	// Flatten all feed entries into content lines.
 	var allLines []string
 	if len(m.feed) == 0 {
-		allLines = append(allLines, boxRow(aDim+"  no activity yet"+aRst, 17, width))
+		allLines = append(allLines, boxRow(aDim+"  no activity yet"+aRst, width))
 	} else {
 		for _, entry := range m.feed {
 			badge, badgeColor := statusBadge(entry.status)
@@ -1476,7 +1729,7 @@ func (m Model) viewActivityFeed(height, width int) string {
 				badgeColor, badge, aRst,
 				aDim, ts, aRst,
 				aBrC+entry.title+aRst)
-			allLines = append(allLines, boxRow(titleLine, visLen(titleLine), width))
+			allLines = append(allLines, boxRow(titleLine, width))
 
 			// Cap output lines per entry: show the last feedLinesPerEntry lines only.
 			const feedLinesPerEntry = 10
@@ -1489,7 +1742,7 @@ func (m Model) viewActivityFeed(height, width int) string {
 			if skipped > 0 {
 				skipMsg := fmt.Sprintf("    … %d earlier lines (press f to scroll)", skipped)
 				skipFull := aDim + skipMsg + aRst
-				allLines = append(allLines, boxRow(skipFull, visLen(skipFull), width))
+				allLines = append(allLines, boxRow(skipFull, width))
 			}
 			for _, outLine := range entryLines {
 				// Strip ANSI codes — feed renders with its own dim style.
@@ -1499,7 +1752,7 @@ func (m Model) viewActivityFeed(height, width int) string {
 					outLine = outLine[:maxLen-1] + "…"
 				}
 				content := aDim + "    " + outLine + aRst
-				allLines = append(allLines, boxRow(content, visLen(content), width))
+				allLines = append(allLines, boxRow(content, width))
 			}
 		}
 	}
@@ -1523,17 +1776,30 @@ func (m Model) viewActivityFeed(height, width int) string {
 	}
 	visible := allLines[offset:end]
 
+	// Compute scroll indicators.
+	hasAbove := offset > 0
+	hasBelow := end < total
+	feedTitle := "ACTIVITY FEED"
+	switch {
+	case hasAbove && hasBelow:
+		feedTitle += " ↕"
+	case hasAbove:
+		feedTitle += " ↑"
+	case hasBelow:
+		feedTitle += " ↓"
+	}
+
 	var lines []string
 	borderColor := aBC
 	if m.feedFocused {
 		borderColor = aBrC
 	}
-	lines = append(lines, boxTop(width, "ACTIVITY FEED", borderColor))
+	lines = append(lines, boxTop(width, feedTitle, borderColor))
 	lines = append(lines, visible...)
 
 	// Pad to fill the box body.
 	for len(lines) < height-1 {
-		lines = append(lines, boxRow("", 0, width))
+		lines = append(lines, boxRow("", width))
 	}
 	lines = append(lines, boxBot(width))
 
@@ -1568,11 +1834,22 @@ func (m Model) viewBottomBar(width int) string {
 			hint("tab", "focus"),
 			hint("q", "quit"),
 		}
+	case m.launcher.focused:
+		parts = []string{
+			hint("enter", "launch"),
+			hint("n", "new"),
+			hint("e", "edit"),
+			hint("d", "delete"),
+			hint("↑↓", "nav"),
+			hint("tab", "focus"),
+			hint("q", "quit"),
+		}
 	default:
 		parts = []string{
 			hint("enter", "launch"),
 			hint("ctrl+s", "submit"),
 			hint("tab", "focus"),
+			hint("p", "pipelines"),
 			hint("a", "agent"),
 			hint("s", "signals"),
 			hint("f", "feed"),
@@ -1583,8 +1860,8 @@ func (m Model) viewBottomBar(width int) string {
 	}
 
 	bar := "  " + strings.Join(parts, sep)
-	if visLen(bar) < width {
-		bar += strings.Repeat(" ", width-visLen(bar))
+	if lipgloss.Width(bar) < width {
+		bar += strings.Repeat(" ", width-lipgloss.Width(bar))
 	}
 	return bar + aRst
 }
@@ -1596,7 +1873,7 @@ func boxTop(w int, title, borderColor string) string {
 		return borderColor + "┌" + strings.Repeat("─", max(w-2, 0)) + "┐" + aRst
 	}
 	label := " " + title + " "
-	dashes := max(w-2-len(label), 0)
+	dashes := max(w-2-lipgloss.Width(label), 0)
 	left := dashes / 2
 	right := dashes - left
 	return borderColor + "┌" + strings.Repeat("─", left) + aBrC + label + borderColor + strings.Repeat("─", right) + "┐" + aRst
@@ -1606,9 +1883,9 @@ func boxBot(w int) string {
 	return aBC + "└" + strings.Repeat("─", max(w-2, 0)) + "┘" + aRst
 }
 
-func boxRow(content string, contentVis, w int) string {
+func boxRow(content string, w int) string {
 	inner := w - 2
-	pad := max(inner-contentVis, 0)
+	pad := max(inner-lipgloss.Width(content), 0)
 	return aBC + "│" + aRst + content + strings.Repeat(" ", pad) + aBC + "│" + aRst
 }
 
@@ -1625,39 +1902,88 @@ func statusBadge(s FeedStatus) (string, string) {
 	}
 }
 
-// visLen returns the number of visible terminal columns in s.
-// Handles CSI sequences (\x1b[...X), skips all control characters.
-func visLen(s string) int {
-	n := 0
-	esc := false
-	for _, r := range s {
-		if r == '\x1b' {
-			esc = true
-			continue
-		}
-		if esc {
-			// CSI/ESC sequences end on any ASCII letter.
-			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
-				esc = false
-			}
-			continue
-		}
-		// Skip control characters (CR, LF, tab, etc.) — not visible columns.
-		if r < 0x20 || r == 0x7f {
-			continue
-		}
-		n++
-	}
-	return n
-}
-
 // padToVis right-pads s with spaces until its visible length equals w.
 func padToVis(s string, w int) string {
-	vl := visLen(s)
+	vl := lipgloss.Width(s)
 	if vl >= w {
 		return s
 	}
 	return s + strings.Repeat(" ", w-vl)
+}
+
+// overlayCenter draws overlay centered over base. Each overlay line replaces
+// the base line from startCol onward so the switchboard content shows around
+// the floating box.
+func overlayCenter(base, overlay string, w, h int) string {
+	baseLines := strings.Split(base, "\n")
+	overlayLines := strings.Split(overlay, "\n")
+
+	popW := 0
+	for _, l := range overlayLines {
+		if vl := lipgloss.Width(l); vl > popW {
+			popW = vl
+		}
+	}
+	popH := len(overlayLines)
+	startRow := max((h-popH)/2, 0)
+	startCol := max((w-popW)/2, 0)
+
+	// For each popup row: splice left base + popup + right base so all panels
+	// remain visible on both sides of the floating box.
+	for i, oLine := range overlayLines {
+		row := startRow + i
+		for len(baseLines) <= row {
+			baseLines = append(baseLines, "")
+		}
+		left := ansiTrunc(baseLines[row], startCol)
+		right := ansiFrom(baseLines[row], startCol+popW)
+		baseLines[row] = left + oLine + right
+	}
+	return strings.Join(baseLines, "\n")
+}
+
+// ansiTrunc returns s truncated at visible column n, skipping SGR escapes.
+// ansiTrunc truncates s at visible column n using muesli/reflow/truncate,
+// which correctly handles ANSI SGR sequences and Unicode wide characters.
+func ansiTrunc(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return truncate.String(s, uint(n))
+}
+
+// ansiFrom returns the portion of s starting at visible column n.
+// Uses muesli/ansi for escape-sequence detection and go-runewidth for
+// accurate Unicode column widths. A reset is prepended so prior SGR state
+// doesn't bleed into the returned segment.
+func ansiFrom(s string, n int) string {
+	if n <= 0 {
+		return s
+	}
+	vis := 0
+	i := 0
+	inEsc := false
+	for i < len(s) {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == ansi.Marker {
+			inEsc = true
+			i += size
+			continue
+		}
+		if inEsc {
+			if ansi.IsTerminator(r) {
+				inEsc = false
+			}
+			i += size
+			continue
+		}
+		if vis >= n {
+			return aRst + s[i:]
+		}
+		vis += runewidth.RuneWidth(r)
+		i += size
+	}
+	return ""
 }
 
 // ── Run ───────────────────────────────────────────────────────────────────────

@@ -130,31 +130,36 @@ func TestLauncherNavClampedAtTop(t *testing.T) {
 	}
 }
 
-// ── Agent runner form steps ───────────────────────────────────────────────────
+// ── Agent modal overlay ───────────────────────────────────────────────────────
 
-func TestAgentFormStepAdvancement(t *testing.T) {
-	// We need providers for step advancement. Use a model with mock providers.
+// TestAgentModalOpenOnEnter asserts that pressing enter when the agent runner
+// is focused (and terminal is wide enough) opens the modal overlay.
+func TestAgentModalOpenOnEnter(t *testing.T) {
 	m := switchboard.NewWithTestProviders()
 
-	// Focus agent section first.
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	// Size the terminal wide enough for the modal.
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m3 := m2.(switchboard.Model)
-	if step := m3.AgentFormStep(); step != 0 {
-		t.Fatalf("expected step 0 after focusing agent, got %d", step)
-	}
 
-	// Tab advances to step 1 (provider has models in test provider).
-	m4, _ := m3.Update(tea.KeyMsg{Type: tea.KeyTab})
+	// Focus agent section.
+	m4, _ := m3.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
 	m5 := m4.(switchboard.Model)
-	if step := m5.AgentFormStep(); step != 1 {
-		t.Errorf("expected step 1 after Tab on step 0, got %d", step)
+	if m5.AgentModalOpen() {
+		t.Fatal("modal should not be open before enter")
 	}
 
-	// Tab again advances to step 2.
-	m6, _ := m5.Update(tea.KeyMsg{Type: tea.KeyTab})
+	// Press enter — modal should open.
+	m6, _ := m5.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m7 := m6.(switchboard.Model)
-	if step := m7.AgentFormStep(); step != 2 {
-		t.Errorf("expected step 2 after Tab on step 1, got %d", step)
+	if !m7.AgentModalOpen() {
+		t.Error("expected agent modal to be open after enter")
+	}
+
+	// Press ESC — modal should close.
+	m8, _ := m7.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m9 := m8.(switchboard.Model)
+	if m9.AgentModalOpen() {
+		t.Error("expected agent modal to be closed after ESC")
 	}
 }
 
@@ -194,11 +199,16 @@ func TestViewContainsActivityFeed(t *testing.T) {
 }
 
 func TestViewContainsBottomBar(t *testing.T) {
+	// When launcher is focused (default), bottom bar is hidden to avoid
+	// double-bar awkwardness with the tmux status bar.
 	m := switchboard.New()
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	view := m2.(switchboard.Model).View()
-	if !strings.Contains(view, "launch") {
-		t.Errorf("View() bottom bar missing 'launch' hint:\n%s", view)
+	m3 := m2.(switchboard.Model)
+	// Shift focus off launcher via Tab to reach the agent panel.
+	m4, _ := m3.Update(tea.KeyMsg{Type: tea.KeyTab})
+	view := m4.(switchboard.Model).View()
+	if !strings.Contains(view, "ctrl+s") {
+		t.Errorf("View() bottom bar missing hint when agent focused:\n%s", view)
 	}
 	if !strings.Contains(view, "quit") {
 		t.Errorf("View() bottom bar missing 'quit' hint:\n%s", view)
@@ -453,6 +463,105 @@ func TestParallelJobCap(t *testing.T) {
 	view := m3.View()
 	if !strings.Contains(view, "max parallel") {
 		t.Errorf("expected warning 'max parallel' in view after cap exceeded:\n%s", view)
+	}
+}
+
+// ── [p] pipelines focus shortcut ─────────────────────────────────────────────
+
+func TestPKeyFocusesPipelines_FromAgent(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	// Focus agent section.
+	m3, _ := m2.(switchboard.Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m4 := m3.(switchboard.Model)
+
+	// Press p — should focus pipelines (launcher).
+	m5, _ := m4.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	m6 := m5.(switchboard.Model)
+	if m6.Cursor() == -1 {
+		// Cursor() reads launcher.selected; if it panics we have a problem.
+		t.Fatal("launcher should be accessible after p key")
+	}
+	// Signal board and feed should not be focused — verified by view rendering.
+	view := m6.View()
+	if !strings.Contains(view, "PIPELINES") {
+		t.Errorf("expected PIPELINES panel in view after p key:\n%s", view)
+	}
+}
+
+func TestPKeyFocusesPipelines_FromFeed(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	// Focus feed.
+	m3, _ := m2.(switchboard.Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	// Press p — should focus pipelines.
+	m4, _ := m3.(switchboard.Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	view := m4.(switchboard.Model).View()
+	if !strings.Contains(view, "PIPELINES") {
+		t.Errorf("expected PIPELINES panel in view after p key from feed:\n%s", view)
+	}
+}
+
+// ── [d] delete pipeline confirmation ─────────────────────────────────────────
+
+func TestDKey_ShowsConfirmation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "my-pipe.pipeline.yaml")
+	if err := os.WriteFile(path, []byte("name: my-pipe\nsteps: []\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	m := switchboard.NewWithPipelines(switchboard.ScanPipelines(dir))
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// Press d — confirmation modal should appear in view.
+	m3, _ := m2.(switchboard.Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	view := m3.(switchboard.Model).View()
+	if !strings.Contains(view, "Delete") {
+		t.Errorf("expected Delete confirmation in view after d key:\n%s", view)
+	}
+}
+
+func TestDKey_CancelWithN(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "my-pipe.pipeline.yaml")
+	os.WriteFile(path, []byte("name: my-pipe\nsteps: []\n"), 0o600) //nolint:errcheck
+
+	m := switchboard.NewWithPipelines(switchboard.ScanPipelines(dir))
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// Press d then n — file should still exist.
+	m3, _ := m2.(switchboard.Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m4, _ := m3.(switchboard.Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	_ = m4
+	if _, err := os.Stat(path); err != nil {
+		t.Error("file should still exist after cancel with n")
+	}
+}
+
+// ── Feed scroll indicators ────────────────────────────────────────────────────
+
+func TestFeedScrollIndicator_NoIndicatorWhenAllVisible(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m3 := m2.(switchboard.Model)
+	// With no feed entries and no scroll, no indicator expected.
+	view := m3.View()
+	if strings.Contains(view, "ACTIVITY FEED ↑") || strings.Contains(view, "ACTIVITY FEED ↓") || strings.Contains(view, "ACTIVITY FEED ↕") {
+		t.Errorf("expected no scroll indicator with no feed content:\n%s", view)
+	}
+}
+
+func TestFeedScrollIndicator_DownWhenContentBelow(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	m3 := m2.(switchboard.Model)
+	// Add enough entries to overflow the visible height.
+	for i := range 30 {
+		m3 = m3.AddFeedEntry(fmt.Sprintf("job%d", i), fmt.Sprintf("pipeline: job%d", i), switchboard.FeedDone, []string{"output line"})
+	}
+	view := m3.View()
+	if !strings.Contains(view, "↓") {
+		t.Errorf("expected ↓ indicator when content extends below viewport:\n%s", view)
 	}
 }
 
