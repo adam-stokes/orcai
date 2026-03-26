@@ -72,21 +72,47 @@ func minInt(a, b int) int {
 	return b
 }
 
-// RenderHeader returns the header string for a panel.
-// If the bundle has ANS bytes for this panel and the terminal is wide enough,
-// the sprite is returned (with a trailing reset). Otherwise the plain-text
-// title is returned.
-func RenderHeader(bundle *themes.Bundle, panel string, termWidth int) string {
-	if bundle != nil && bundle.HeaderBytes != nil {
-		if ans, ok := bundle.HeaderBytes[panel]; ok && len(ans) > 0 {
-			sw := spriteWidth(ans)
-			if termWidth == 0 || termWidth >= sw {
-				return strings.TrimRight(string(ans), "\n") + "\x1b[0m"
-			}
-		}
-	}
+// RenderHeader returns the plain-text fallback title for a panel.
+// Used in boxTop() when no ANS sprite is available.
+func RenderHeader(panel string) string {
 	if title, ok := panelTitles[panel]; ok {
 		return title
 	}
 	return strings.ToUpper(panel)
+}
+
+// SpriteLines returns the ANS sprite for a panel as individual lines, ready
+// to be prepended in place of a boxTop() call.
+//
+// Returns nil when:
+//   - the bundle has no sprite for this panel, or
+//   - panelWidth > 0 and the widest sprite line exceeds panelWidth.
+//
+// The last returned line has "\x1b[0m" appended to prevent color bleed into
+// subsequent box rows.
+func SpriteLines(bundle *themes.Bundle, panel string, panelWidth int) []string {
+	if bundle == nil || bundle.HeaderBytes == nil {
+		return nil
+	}
+	ans, ok := bundle.HeaderBytes[panel]
+	if !ok || len(ans) == 0 {
+		return nil
+	}
+	// Enforce width constraint.
+	if panelWidth > 0 && spriteWidth(ans) > panelWidth {
+		return nil
+	}
+	// Split into non-empty lines.
+	var lines []string
+	for _, raw := range bytes.Split(ans, []byte("\n")) {
+		s := strings.TrimRight(string(raw), "\r")
+		if visibleWidth(s) > 0 {
+			lines = append(lines, s)
+		}
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	lines[len(lines)-1] += "\x1b[0m"
+	return lines
 }

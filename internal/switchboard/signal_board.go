@@ -40,15 +40,18 @@ func (m Model) buildSignalBoard(height, width int) []string {
 		borderColor = aBrC
 	}
 
-	sbTitle := RenderHeader(m.activeBundle(), "signal_board", width)
-	header := fmt.Sprintf("%s [%s]", sbTitle, filter)
 	var lines []string
-	lines = append(lines, boxTop(width, header, borderColor))
+	if sprite := SpriteLines(m.activeBundle(), "signal_board", width); sprite != nil {
+		lines = append(lines, sprite...)
+	} else {
+		header := fmt.Sprintf("%s [%s]", RenderHeader("signal_board"), filter)
+		lines = append(lines, boxTop(width, header, borderColor))
+	}
 
 	filtered := m.filteredFeed()
 
-	// Cap to available body rows.
-	bodyH := height - 2
+	// Cap to available body rows (header may be 1 line or a multi-line sprite).
+	bodyH := height - len(lines) - 1 // -1 for boxBot
 	if bodyH <= 0 {
 		bodyH = 1
 	}

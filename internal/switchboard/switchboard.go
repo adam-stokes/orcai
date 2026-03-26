@@ -1831,11 +1831,16 @@ func (m Model) buildLauncherSection(w int) []string {
 		borderColor = aBrC
 	}
 
-	header := RenderHeader(m.activeBundle(), "pipelines", m.width)
-	if n := len(m.activeJobs); n > 0 {
-		header += fmt.Sprintf(" [%d running]", n)
+	var rows []string
+	if sprite := SpriteLines(m.activeBundle(), "pipelines", w); sprite != nil {
+		rows = append(rows, sprite...)
+	} else {
+		header := RenderHeader("pipelines")
+		if n := len(m.activeJobs); n > 0 {
+			header += fmt.Sprintf(" [%d running]", n)
+		}
+		rows = append(rows, boxTop(w, header, borderColor))
 	}
-	rows := []string{boxTop(w, header, borderColor)}
 
 	if len(m.launcher.pipelines) == 0 {
 		rows = append(rows, boxRow(aDim+"  no pipelines saved"+aRst, w))
@@ -1869,7 +1874,12 @@ func (m Model) buildAgentSection(w int) []string {
 		borderColor = aBrC
 	}
 
-	rows := []string{boxTop(w, RenderHeader(m.activeBundle(), "agent_runner", m.width), borderColor)}
+	var rows []string
+	if sprite := SpriteLines(m.activeBundle(), "agent_runner", w); sprite != nil {
+		rows = append(rows, sprite...)
+	} else {
+		rows = append(rows, boxTop(w, RenderHeader("agent_runner"), borderColor))
+	}
 
 	if len(m.agent.providers) == 0 {
 		rows = append(rows, boxRow(aDim+"  no providers available"+aRst, w))
@@ -1924,7 +1934,12 @@ func totalFeedLines(feed []feedEntry) int {
 
 // viewActivityFeed renders the center activity feed with scroll support.
 func (m Model) viewActivityFeed(height, width int) string {
-	visibleH := height - 2 // minus top and bottom border
+	feedSprite := SpriteLines(m.activeBundle(), "activity_feed", width)
+	headerH := 1
+	if feedSprite != nil {
+		headerH = len(feedSprite)
+	}
+	visibleH := height - headerH - 1 // minus header and bottom border
 
 	// feedRowAt appends a content row, applying the cursor highlight if the
 	// current line index matches feedCursor when the feed is focused.
@@ -2018,14 +2033,14 @@ func (m Model) viewActivityFeed(height, width int) string {
 	// Compute scroll indicators.
 	hasAbove := offset > 0
 	hasBelow := end < total
-	feedTitle := RenderHeader(m.activeBundle(), "activity_feed", m.width)
+	scrollSuffix := ""
 	switch {
 	case hasAbove && hasBelow:
-		feedTitle += " ↕"
+		scrollSuffix = " ↕"
 	case hasAbove:
-		feedTitle += " ↑"
+		scrollSuffix = " ↑"
 	case hasBelow:
-		feedTitle += " ↓"
+		scrollSuffix = " ↓"
 	}
 
 	var lines []string
@@ -2033,7 +2048,11 @@ func (m Model) viewActivityFeed(height, width int) string {
 	if m.feedFocused {
 		borderColor = aBrC
 	}
-	lines = append(lines, boxTop(width, feedTitle, borderColor))
+	if feedSprite != nil {
+		lines = append(lines, feedSprite...)
+	} else {
+		lines = append(lines, boxTop(width, RenderHeader("activity_feed")+scrollSuffix, borderColor))
+	}
 	lines = append(lines, visible...)
 
 	// Pad to fill the box body.

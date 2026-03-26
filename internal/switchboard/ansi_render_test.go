@@ -8,102 +8,99 @@ import (
 	"github.com/adam-stokes/orcai/internal/themes"
 )
 
-// TestRenderHeader_NilBundle falls back to plain text.
-func TestRenderHeader_NilBundle(t *testing.T) {
-	got := switchboard.RenderHeader(nil, "pipelines", 200)
-	if got != "PIPELINES" {
-		t.Errorf("RenderHeader(nil, pipelines, 200) = %q, want %q", got, "PIPELINES")
+// ── RenderHeader (plain-text fallback) ───────────────────────────────────────
+
+func TestRenderHeader_KnownPanel(t *testing.T) {
+	cases := []struct{ panel, want string }{
+		{"pipelines", "PIPELINES"},
+		{"agent_runner", "AGENT RUNNER"},
+		{"signal_board", "SIGNAL BOARD"},
+		{"activity_feed", "ACTIVITY FEED"},
+	}
+	for _, c := range cases {
+		got := switchboard.RenderHeader(c.panel)
+		if got != c.want {
+			t.Errorf("RenderHeader(%q) = %q, want %q", c.panel, got, c.want)
+		}
 	}
 }
 
-// TestRenderHeader_NilHeaderBytes falls back to plain text.
-func TestRenderHeader_NilHeaderBytes(t *testing.T) {
-	b := &themes.Bundle{}
-	got := switchboard.RenderHeader(b, "pipelines", 200)
-	if got != "PIPELINES" {
-		t.Errorf("RenderHeader(nilHeaderBytes, pipelines, 200) = %q, want %q", got, "PIPELINES")
-	}
-}
-
-// TestRenderHeader_NarrowTerminal falls back to plain text when terminal is narrower than sprite.
-func TestRenderHeader_NarrowTerminal(t *testing.T) {
-	// Create a fake sprite that is 80 visible characters wide.
-	// We'll use a simple ASCII string for the sprite (no ANSI).
-	sprite := strings.Repeat("X", 80) + "\n"
-	b := &themes.Bundle{
-		HeaderBytes: map[string][]byte{
-			"pipelines": []byte(sprite),
-		},
-	}
-	// Terminal width of 40 < sprite width of 80 → should fall back.
-	got := switchboard.RenderHeader(b, "pipelines", 40)
-	if got != "PIPELINES" {
-		t.Errorf("RenderHeader(narrow=40, sprite=80) = %q, want plain text %q", got, "PIPELINES")
-	}
-}
-
-// TestRenderHeader_WideTerminal returns sprite bytes + reset suffix.
-func TestRenderHeader_WideTerminal(t *testing.T) {
-	spriteContent := "\x1b[35mPIPELINES\x1b[0m"
-	b := &themes.Bundle{
-		HeaderBytes: map[string][]byte{
-			"pipelines": []byte(spriteContent),
-		},
-	}
-	got := switchboard.RenderHeader(b, "pipelines", 200)
-	if !strings.HasSuffix(got, "\x1b[0m") {
-		t.Errorf("RenderHeader should end with reset, got: %q", got)
-	}
-	if !strings.Contains(got, "PIPELINES") {
-		t.Errorf("RenderHeader should contain sprite content, got: %q", got)
-	}
-}
-
-// TestRenderHeader_WithSprite tests the sprite path with a full bundle.
-func TestRenderHeader_WithSprite(t *testing.T) {
-	b := &themes.Bundle{
-		HeaderBytes: map[string][]byte{
-			"pipelines": []byte("\x1b[35mPIPELINES\x1b[0m"),
-		},
-	}
-	got := switchboard.RenderHeader(b, "pipelines", 200)
-	if !strings.HasSuffix(got, "\x1b[0m") {
-		t.Errorf("RenderHeader should end with reset, got: %q", got)
-	}
-}
-
-// TestRenderHeader_UnknownPanel falls back to uppercase panel name.
 func TestRenderHeader_UnknownPanel(t *testing.T) {
-	got := switchboard.RenderHeader(nil, "my_panel", 200)
+	got := switchboard.RenderHeader("my_panel")
 	if got != "MY_PANEL" {
-		t.Errorf("RenderHeader(nil, my_panel, 200) = %q, want %q", got, "MY_PANEL")
+		t.Errorf("RenderHeader(my_panel) = %q, want %q", got, "MY_PANEL")
 	}
 }
 
-// TestRenderHeader_EmptyHeaderBytes falls back to plain text.
-func TestRenderHeader_EmptyHeaderBytes(t *testing.T) {
-	b := &themes.Bundle{
-		HeaderBytes: map[string][]byte{
-			"pipelines": []byte{},
-		},
-	}
-	got := switchboard.RenderHeader(b, "pipelines", 200)
-	if got != "PIPELINES" {
-		t.Errorf("RenderHeader(empty bytes, pipelines, 200) = %q, want %q", got, "PIPELINES")
+// ── SpriteLines ──────────────────────────────────────────────────────────────
+
+func TestSpriteLines_NilBundle(t *testing.T) {
+	if got := switchboard.SpriteLines(nil, "pipelines", 200); got != nil {
+		t.Errorf("SpriteLines(nil, ...) = %v, want nil", got)
 	}
 }
 
-// TestRenderHeader_ZeroTermWidth treats zero as "no width constraint" (any terminal fits).
-func TestRenderHeader_ZeroTermWidth(t *testing.T) {
-	spriteContent := strings.Repeat("X", 200) + "\n"
-	b := &themes.Bundle{
-		HeaderBytes: map[string][]byte{
-			"pipelines": []byte(spriteContent),
-		},
+func TestSpriteLines_NilHeaderBytes(t *testing.T) {
+	b := &themes.Bundle{}
+	if got := switchboard.SpriteLines(b, "pipelines", 200); got != nil {
+		t.Errorf("SpriteLines(no bytes, ...) = %v, want nil", got)
 	}
-	// termWidth=0 means unconstrained — should return the sprite.
-	got := switchboard.RenderHeader(b, "pipelines", 0)
-	if got == "PIPELINES" {
-		t.Error("RenderHeader with termWidth=0 should not fall back to plain text")
+}
+
+func TestSpriteLines_EmptyBytes(t *testing.T) {
+	b := &themes.Bundle{HeaderBytes: map[string][]byte{"pipelines": {}}}
+	if got := switchboard.SpriteLines(b, "pipelines", 200); got != nil {
+		t.Errorf("SpriteLines(empty bytes, ...) = %v, want nil", got)
+	}
+}
+
+func TestSpriteLines_NarrowPanel_ReturnsNil(t *testing.T) {
+	// Sprite is 80 visible chars wide; panel is only 40.
+	sprite := strings.Repeat("X", 80) + "\n"
+	b := &themes.Bundle{HeaderBytes: map[string][]byte{"pipelines": []byte(sprite)}}
+	if got := switchboard.SpriteLines(b, "pipelines", 40); got != nil {
+		t.Errorf("SpriteLines(narrow=40, sprite=80) should be nil, got %v", got)
+	}
+}
+
+func TestSpriteLines_WidePanel_ReturnsLines(t *testing.T) {
+	content := "\x1b[35mPIPELINES\x1b[0m"
+	b := &themes.Bundle{HeaderBytes: map[string][]byte{"pipelines": []byte(content)}}
+	lines := switchboard.SpriteLines(b, "pipelines", 200)
+	if lines == nil {
+		t.Fatal("SpriteLines(wide=200, sprite=9) should not be nil")
+	}
+	if len(lines) == 0 {
+		t.Fatal("SpriteLines returned empty slice")
+	}
+	last := lines[len(lines)-1]
+	if !strings.HasSuffix(last, "\x1b[0m") {
+		t.Errorf("last line should end with reset, got: %q", last)
+	}
+}
+
+func TestSpriteLines_ZeroWidth_Unconstrained(t *testing.T) {
+	// panelWidth=0 means no width constraint.
+	wide := strings.Repeat("X", 200)
+	b := &themes.Bundle{HeaderBytes: map[string][]byte{"pipelines": []byte(wide)}}
+	if got := switchboard.SpriteLines(b, "pipelines", 0); got == nil {
+		t.Error("SpriteLines(panelWidth=0) should not return nil (unconstrained)")
+	}
+}
+
+func TestSpriteLines_MultiLine_PreservesLines(t *testing.T) {
+	// Three-line sprite: only non-empty lines should be returned.
+	content := "line1\nline2\nline3\n"
+	b := &themes.Bundle{HeaderBytes: map[string][]byte{"pipelines": []byte(content)}}
+	lines := switchboard.SpriteLines(b, "pipelines", 200)
+	if len(lines) != 3 {
+		t.Errorf("SpriteLines 3-line sprite: got %d lines, want 3", len(lines))
+	}
+}
+
+func TestSpriteLines_UnknownPanel_ReturnsNil(t *testing.T) {
+	b := &themes.Bundle{HeaderBytes: map[string][]byte{"pipelines": []byte("X")}}
+	if got := switchboard.SpriteLines(b, "other_panel", 200); got != nil {
+		t.Errorf("SpriteLines(unknown panel) = %v, want nil", got)
 	}
 }
