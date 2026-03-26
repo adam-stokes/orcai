@@ -112,7 +112,11 @@ func startLogWatcher(feedID, logFile, doneFile string, ch chan<- tea.Msg) {
 					offset += int64(len(data))
 					for _, line := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
 						if line != "" {
-							ch <- FeedLineMsg{ID: feedID, Line: line}
+							if stepID, status, ok := parseStepStatus(line); ok {
+								ch <- StepStatusMsg{ID: feedID, StepID: stepID, Status: status}
+							} else {
+								ch <- FeedLineMsg{ID: feedID, Line: line}
+							}
 						}
 					}
 				}

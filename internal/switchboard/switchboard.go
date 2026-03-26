@@ -24,6 +24,7 @@ import (
 	"github.com/muesli/reflow/truncate"
 
 	"github.com/adam-stokes/orcai/internal/picker"
+	"github.com/adam-stokes/orcai/internal/pipeline"
 	"github.com/adam-stokes/orcai/internal/plugin"
 	"github.com/adam-stokes/orcai/internal/styles"
 )
@@ -69,12 +70,19 @@ const agentInnerHeight = 8
 // maxParallelJobs is the maximum number of jobs that can run concurrently.
 const maxParallelJobs = 8
 
+// StepInfo tracks the status of a single pipeline step within a feed entry.
+type StepInfo struct {
+	id     string
+	status string // "pending", "running", "done", "failed"
+}
+
 type feedEntry struct {
 	id         string
 	title      string
 	status     FeedStatus
 	ts         time.Time
 	lines      []string
+	steps      []StepInfo
 	tmuxWindow string // fully-qualified target "session:orcai-<feedID>", empty if no window
 	logFile    string // /tmp/orcai-<feedID>.log
 	doneFile   string // non-empty for window-mode jobs; written by the shell when the command exits
@@ -113,6 +121,34 @@ type jobHandle struct {
 type FeedLineMsg struct {
 	ID   string
 	Line string
+}
+
+// StepStatusMsg carries a step lifecycle update from the log-watcher to the model.
+type StepStatusMsg struct {
+	ID     string // feed entry ID
+	StepID string
+	Status string
+}
+
+// parseStepStatus parses a "[step:<id>] status:<state>" log line.
+// Returns ok=false for any non-matching or malformed line.
+func parseStepStatus(line string) (stepID, status string, ok bool) {
+	const prefix = "[step:"
+	const sep = "] status:"
+	if !strings.HasPrefix(line, prefix) {
+		return "", "", false
+	}
+	rest := line[len(prefix):]
+	idx := strings.Index(rest, sep)
+	if idx < 0 {
+		return "", "", false
+	}
+	id := rest[:idx]
+	state := rest[idx+len(sep):]
+	if id == "" || state == "" {
+		return "", "", false
+	}
+	return id, state, true
 }
 
 type jobDoneMsg struct {
@@ -507,6 +543,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Re-issue drain only for the job that produced this message.
 		// Draining all jobs would accumulate goroutines and starve channels.
+		if jh, ok := m.activeJobs[msg.ID]; ok {
+			return m, drainChan(jh.ch)
+		}
+		return m, nil
+
+	case StepStatusMsg:
+		for i := range m.feed {
+			if m.feed[i].id == msg.ID {
+				found := false
+				for j := range m.feed[i].steps {
+					if m.feed[i].steps[j].id == msg.StepID {
+						m.feed[i].steps[j].status = msg.Status
+						found = true
+						break
+					}
+				}
+				if !found {
+					m.feed[i].steps = append(m.feed[i].steps, StepInfo{id: msg.StepID, status: msg.Status})
+				}
+				break
+			}
+		}
 		if jh, ok := m.activeJobs[msg.ID]; ok {
 			return m, drainChan(jh.ch)
 		}
@@ -966,6 +1024,17 @@ func (m Model) handleEnter() (Model, tea.Cmd) {
 			title:  "pipeline: " + name,
 			status: FeedRunning,
 			ts:     time.Now(),
+		}
+		// Load pipeline YAML to populate the initial step list.
+		if f, err := os.Open(yamlPath); err == nil {
+			if pl, err := pipeline.Load(f); err == nil {
+				for _, s := range pl.Steps {
+					if s.Type != "input" && s.Type != "output" {
+						entry.steps = append(entry.steps, StepInfo{id: s.ID, status: "pending"})
+					}
+				}
+			}
+			f.Close()
 		}
 		m.feed = append([]feedEntry{entry}, m.feed...)
 		if len(m.feed) > 200 {
