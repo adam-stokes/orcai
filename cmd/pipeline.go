@@ -87,8 +87,16 @@ var pipelineRunCmd = &cobra.Command{
 		runProviders := picker.BuildProviders()
 		mgr := plugin.NewManager()
 		for _, prov := range runProviders {
+			// Sidecar-backed providers are fully registered by LoadWrappersFromDir below.
+			if prov.SidecarPath != "" {
+				continue
+			}
+			binary := prov.Command
+			if binary == "" {
+				binary = prov.ID
+			}
 			provArgs := picker.PipelineLaunchArgs(prov.ID)
-			if err := mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", prov.ID, provArgs...)); err != nil {
+			if err := mgr.Register(plugin.NewCliAdapter(prov.ID, prov.Label+" CLI adapter", binary, provArgs...)); err != nil {
 				fmt.Fprintf(os.Stderr, "pipeline: register provider %q: %v\n", prov.ID, err)
 			}
 		}

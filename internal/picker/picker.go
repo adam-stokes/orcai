@@ -33,10 +33,11 @@ type ModelOption struct {
 
 // ProviderDef describes one AI provider and its available models.
 type ProviderDef struct {
-	ID      string
-	Label   string
-	Models  []ModelOption
-	Command string // actual binary path/name to invoke
+	ID          string
+	Label       string
+	Models      []ModelOption
+	Command     string // actual binary path/name to invoke
+	SidecarPath string // path to wrappers YAML; non-empty for sidecar-backed providers
 }
 
 // Providers is the base list of built-in providers. All AI providers are
@@ -253,10 +254,11 @@ func buildProviders() []ProviderDef {
 			cmd = meta.Command
 		}
 		out = append(out, ProviderDef{
-			ID:      e.name,
-			Label:   label,
-			Models:  models,
-			Command: cmd,
+			ID:          e.name,
+			Label:       label,
+			Models:      models,
+			Command:     cmd,
+			SidecarPath: e.sidecarPath,
 		})
 	}
 
