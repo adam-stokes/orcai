@@ -1148,7 +1148,7 @@ func Run() {
 // RunToggle opens the switchboard as a tmux popup.
 func RunToggle() {
 	bin := resolveSwitchboardBin()
-	exec.Command("tmux", "display-popup", "-E", "-w", "120", "-h", "40", bin).Run() //nolint:errcheck
+	exec.Command("tmux", "display-popup", "-E", "-w", "100%", "-h", "100%", bin).Run() //nolint:errcheck
 }
 
 func resolveSwitchboardBin() string {

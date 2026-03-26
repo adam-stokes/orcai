@@ -44,7 +44,7 @@ set -g window-status-format "#[fg=#6272a4] #I:#W "
 set -g window-status-current-format "#[fg=#f8f8f2,bold] #I:#W "
 set -g status-left "#[fg=#bd93f9,bold] ORCAI #[default]"
 set -g status-left-length 20
-set -g status-right "#[fg=#6272a4] ^spc n new  ^spc c win  ^spc x kill  ^spc t panel  ^spc p build   %H:%M "
+set -g status-right "#[fg=#6272a4] ^spc n new  ^spc c win  ^spc x kill  ^spc t panel   %H:%M "
 set -g status-right-length 80
 set -g mouse on
 set -g default-terminal "screen-256color"
@@ -63,8 +63,7 @@ set -g pane-active-border-style "fg=#bd93f9"
 		"bind-key -T orcai-chord n     { switch-client -T root ; display-popup -E -w 120 -h 40 \"" + picker + "\" }\n" +
 		"bind-key -T orcai-chord o     { switch-client -T root ; display-popup -E -w 68 -h 24 \"" + self + " ollama\" }\n" +
 		"bind-key -T orcai-chord s     { switch-client -T root ; display-popup -E -w 44 -h 6 \"" + self + " _opsx\" }\n" +
-		"bind-key -T orcai-chord p     { switch-client -T root ; new-window -t orcai -n pipeline-builder \"" + self + " pipeline-builder\" }\n" +
-		"bind-key -T orcai-chord t     { switch-client -T root ; split-window -h -l 40% \"" + sysop + "\" }\n" +
+		"bind-key -T orcai-chord t     display-popup -E -w 100% -h 100% \"" + sysop + "\"\n" +
 		// Window management
 		"bind-key -T orcai-chord c     { switch-client -T root ; new-window }\n" +
 		"bind-key -T orcai-chord [     { switch-client -T root ; previous-window }\n" +
@@ -243,9 +242,10 @@ func Run() error {
 	// Only apply keybindings on fresh session; layout.yaml is for re-attach customisation.
 	applyKeybindings(cfgDir)
 
-	// Split a left panel (40%) and run the welcome widget inside it.
-	// The welcome pane receives focus on startup; the shell pane is on the right.
-	run("split-window", "-h", "-b", "-l", "40%", "-t", SessionName+":ORCAI", self, "welcome") //nolint:errcheck
+	// Open the switchboard as a full-screen popup on startup.
+	// The shell remains in the background; ^spc t reopens the switchboard at any time.
+	sysop := resolveCompanion(self, "orcai-sysop", "sysop")
+	run("display-popup", "-E", "-w", "100%", "-h", "100%", sysop) //nolint:errcheck
 
 	cmd := exec.Command("tmux", "-f", confPath, "attach-session", "-t", SessionName)
 	cmd.Stdin = os.Stdin
