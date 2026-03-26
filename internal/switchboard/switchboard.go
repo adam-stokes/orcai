@@ -1948,7 +1948,10 @@ func (m Model) viewBottomBar(width int) string {
 		}
 	case m.feedFocused:
 		parts = []string{
-			hint("↑↓", "scroll"),
+			hint("↑↓", "nav"),
+			hint("PgUp/PgDn", "page"),
+			hint("g/G", "top/bottom"),
+			hint("enter", "open"),
 			hint("tab", "focus"),
 			hint("q", "quit"),
 		}
