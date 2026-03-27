@@ -1,0 +1,20 @@
+# ORCAI Translations — Hacker customization file
+# Copy to ~/.config/orcai/translations.yaml and customize.
+# Values support raw ANSI escape codes: \e[38;2;R;G;Bm for 24-bit color,
+# \e[38;5;Nm for 256-color, \e[0m to reset.
+
+# Panel titles
+pipelines_panel_title: "▓▒░ PIPELINES ░▒▓"
+agent_runner_panel_title: "▓▒░ AGENT RUNNER ░▒▓"
+signal_board_panel_title: "▓▒░ SIGNAL BOARD ░▒▓"
+activity_feed_panel_title: "▓▒░ ACTIVITY FEED ░▒▓"
+inbox_panel_title: "▓▒░ INBOX ░▒▓"
+cron_panel_title: "▓▒░ CRON DAEMON ░▒▓"
+
+# Header title (full-width centered bar at top)
+switchboard_header_title: "\e[38;2;189;147;249m✦ ORCAI — ABBS ✦\e[0m"
+
+# Modal titles
+quit_modal_title: ">>> BAIL OUT <<<"
+help_modal_title: ">>> GETTING STARTED <<<"
+theme_picker_title: ">>> THEMES <<<"

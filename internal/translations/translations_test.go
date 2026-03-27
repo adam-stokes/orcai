@@ -3,8 +3,10 @@ package translations_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/adam-stokes/orcai/internal/assets"
 	"github.com/adam-stokes/orcai/internal/translations"
 )
 
@@ -111,5 +113,55 @@ func TestNopProvider_ReturnsAll_Fallback(t *testing.T) {
 		if got := p.T(k, "FB"); got != "FB" {
 			t.Errorf("NopProvider.T(%q) = %q, want %q", k, got, "FB")
 		}
+	}
+}
+
+// TestExampleTranslationsRoundTrip verifies that the bundled example
+// translations.yaml file parses without error, all canonical keys resolve to
+// non-empty values, and ANSI escape shorthands in the header title are expanded
+// to raw ESC bytes.
+func TestExampleTranslationsRoundTrip(t *testing.T) {
+	data, err := assets.ExamplesFS.ReadFile("examples/translations.yaml")
+	if err != nil {
+		t.Fatalf("read examples/translations.yaml from embed: %v", err)
+	}
+
+	// Write to a temp file so NewYAMLProviderFromPath can load it.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "translations.yaml")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write temp translations.yaml: %v", err)
+	}
+
+	p := translations.NewYAMLProviderFromPath(path)
+
+	// All canonical keys must resolve to non-empty, non-fallback values.
+	allKeys := []string{
+		translations.KeyPipelinesTitle,
+		translations.KeyAgentRunnerTitle,
+		translations.KeySignalBoardTitle,
+		translations.KeyActivityFeedTitle,
+		translations.KeyInboxTitle,
+		translations.KeyCronTitle,
+		translations.KeySwitchboardHeader,
+		translations.KeyQuitModalTitle,
+		translations.KeyHelpModalTitle,
+		translations.KeyThemePickerTitle,
+	}
+	const sentinel = "__MISSING__"
+	for _, k := range allKeys {
+		got := p.T(k, sentinel)
+		if got == sentinel {
+			t.Errorf("key %q not found in example translations file", k)
+		}
+		if got == "" {
+			t.Errorf("key %q resolved to empty string", k)
+		}
+	}
+
+	// The switchboard header title uses \e[ escape shorthand — verify it expanded.
+	header := p.T(translations.KeySwitchboardHeader, sentinel)
+	if !strings.Contains(header, "\x1b[") {
+		t.Errorf("switchboard_header_title ANSI escape not expanded; got %q", header)
 	}
 }

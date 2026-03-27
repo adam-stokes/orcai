@@ -1,6 +1,7 @@
 name: dracula
 display_name: "Dracula"
 header_pattern: texture
+header_font: placeholder
 gradient_border:
   - "#ff79c6"
   - "#bd93f9"

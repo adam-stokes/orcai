@@ -1,6 +1,7 @@
 name: abs
 display_name: "ABS Dark"
 header_pattern: waves
+header_font: placeholder
 gradient_border:
   - "#bd93f9"
   - "#8be9fd"

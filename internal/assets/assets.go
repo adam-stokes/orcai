@@ -19,3 +19,8 @@ var ThemeFS embed.FS
 //
 //go:embed fonts/tdf/*.tdf
 var FontFS embed.FS
+
+// ExamplesFS contains example configuration files for end-user reference.
+//
+//go:embed examples
+var ExamplesFS embed.FS
