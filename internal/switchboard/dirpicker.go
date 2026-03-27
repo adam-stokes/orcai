@@ -163,24 +163,28 @@ func (m DirPickerModel) Update(msg tea.Msg) (DirPickerModel, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
+		key := msg.String()
+		queryEmpty := m.input.Value() == ""
+
+		// Arrow keys always navigate; j/k only navigate when query is empty.
+		switch {
+		case key == "up" || (key == "k" && queryEmpty):
 			if m.cursor > 0 {
 				m.cursor--
 			}
 			return m, nil
-		case "down", "j":
+		case key == "down" || (key == "j" && queryEmpty):
 			if m.cursor < len(m.shown)-1 {
 				m.cursor++
 			}
 			return m, nil
-		case "enter":
+		case key == "enter":
 			if len(m.shown) > 0 && m.cursor < len(m.shown) {
 				selected := m.shown[m.cursor]
 				return m, func() tea.Msg { return DirSelectedMsg{Path: selected} }
 			}
 			return m, nil
-		case "esc":
+		case key == "esc":
 			return m, func() tea.Msg { return DirCancelledMsg{} }
 		default:
 			var cmd tea.Cmd
