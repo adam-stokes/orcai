@@ -1018,7 +1018,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			for _, jh := range m.activeJobs {
 				jh.cancel()
 			}
-			exec.Command("tmux", "kill-session", "-t", "orcai").Run() //nolint:errcheck
+			exec.Command("tmux", "kill-session", "-t", "orcai-cron").Run() //nolint:errcheck
+			exec.Command("tmux", "kill-session", "-t", "orcai").Run()      //nolint:errcheck
 			return m, tea.Quit
 		default:
 			m.confirmQuit = false
