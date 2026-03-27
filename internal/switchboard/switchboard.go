@@ -589,7 +589,14 @@ func (m Model) resolveModalColors() modalColors {
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 // Init starts the tick command and the inbox poll.
-func (m Model) Init() tea.Cmd { return tea.Batch(tickCmd(), m.inboxModel.Init()) }
+func (m Model) Init() tea.Cmd {
+	// If cron.yaml already has entries, ensure the daemon is running so
+	// existing schedules fire without requiring the user to reschedule.
+	if entries, err := orcaicron.LoadConfig(); err == nil && len(entries) > 0 {
+		go ensureCronDaemon()
+	}
+	return tea.Batch(tickCmd(), m.inboxModel.Init())
+}
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(3*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
@@ -2314,7 +2321,6 @@ func (m Model) viewPipelineScheduleInput(w int) string {
 	}
 	rows = append(rows, headerStyle.Render(title))
 	rows = append(rows, "")
-	rows = append(rows, rowStyle.Render(pal.Dim+"  cron expression:"+aRst))
 
 	schedInnerW := max(innerW-4, 10)
 	m.pipelineScheduleInput.SetWidth(schedInnerW)
@@ -2324,6 +2330,10 @@ func (m Model) viewPipelineScheduleInput(w int) string {
 	}
 	if m.pipelineScheduleErr != "" {
 		rows = append(rows, rowStyle.Render(pal.Error+"  "+m.pipelineScheduleErr+aRst))
+	} else {
+		rows = append(rows, rowStyle.Render(pal.Dim+"  0 * * * *    every hour"+aRst))
+		rows = append(rows, rowStyle.Render(pal.Dim+"  0 9 * * *    daily at 9am"+aRst))
+		rows = append(rows, rowStyle.Render(pal.Dim+"  0 9 * * 1-5  weekdays at 9am"+aRst))
 	}
 	rows = append(rows, "")
 	rows = append(rows, rowStyle.Render(pal.Dim+"  enter/ctrl+s confirm  esc cancel"+aRst))
@@ -2483,6 +2493,10 @@ func (m Model) viewAgentModalBox(w int) string {
 	if m.agentScheduleErr != "" {
 		errLine := "  " + pal.Error + m.agentScheduleErr + aRst
 		rows = append(rows, boxRow(errLine, modalW, modalBorderColor))
+	} else {
+		rows = append(rows, boxRow(aDim+"  0 * * * *    every hour"+aRst, modalW, modalBorderColor))
+		rows = append(rows, boxRow(aDim+"  0 9 * * *    daily at 9am"+aRst, modalW, modalBorderColor))
+		rows = append(rows, boxRow(aDim+"  0 9 * * 1-5  weekdays at 9am"+aRst, modalW, modalBorderColor))
 	}
 
 	// ── Hint bar ──────────────────────────────────────────────────────────────

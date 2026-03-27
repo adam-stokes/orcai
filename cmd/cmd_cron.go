@@ -56,15 +56,25 @@ var cronStartCmd = &cobra.Command{
 			}
 		}
 
+		// Resolve absolute path of the running binary so the tmux session
+		// can invoke it even when orcai is not in PATH.
+		self, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("cron: resolve executable: %w", err)
+		}
+		self = filepath.Clean(self)
+
 		// Create the new session running the internal daemon command.
 		newArgs := []string{
 			"new-session", "-d", "-s", "orcai-cron",
 			"-x", "220", "-y", "50",
-			"orcai cron run",
+			self + " cron run",
 		}
 		if err := exec.Command("tmux", newArgs...).Run(); err != nil {
 			return fmt.Errorf("cron: start session: %w", err)
 		}
+		// Label the window so the jump window popup shows "orcai-cron".
+		exec.Command("tmux", "set-window-option", "-t", "orcai-cron:0", "@orcai-label", "orcai-cron").Run() //nolint:errcheck
 		fmt.Println("cron: daemon started in tmux session 'orcai-cron'")
 		return nil
 	},
