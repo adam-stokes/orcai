@@ -36,6 +36,7 @@ func applyTmuxTheme(b *themes.Bundle) {
 	opts := [][]string{
 		{"set-option", "-g", "status-style", fmt.Sprintf("fg=%s,bg=%s", accent, bg)},
 		{"set-option", "-g", "status-left", fmt.Sprintf("#[fg=%s,bold] ORCAI #[default]", accent)},
+		{"set-option", "-g", "status-right-length", "200"},
 		{"set-option", "-g", "status-right", fmt.Sprintf("#[fg=%s] ^spc h help  ^spc t switchboard  ^spc m themes  ^spc j jump  ^spc c win  ^spc d detach  ^spc r reload  ^spc q quit  %%H:%%M ", dim)},
 		{"set-option", "-g", "pane-border-style", fmt.Sprintf("fg=%s", border)},
 		{"set-option", "-g", "pane-active-border-style", fmt.Sprintf("fg=%s", accent)},

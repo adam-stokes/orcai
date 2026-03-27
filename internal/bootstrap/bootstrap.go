@@ -90,7 +90,7 @@ func buildTmuxConf(self string) string {
 		fmt.Sprintf("set -g status-left \"#[fg=%s,bold] ORCAI #[default]\"\n", pal.accent) +
 		"set -g status-left-length 20\n" +
 		fmt.Sprintf("set -g status-right \"#[fg=%s] ^spc h help  ^spc t switchboard  ^spc m themes  ^spc j jump  ^spc c win  ^spc d detach  ^spc r reload  ^spc q quit  %%H:%%M \"\n", pal.dim) +
-		"set -g status-right-length 100\n" +
+		"set -g status-right-length 200\n" +
 		"set -g mouse on\n" +
 		"set -g default-terminal \"screen-256color\"\n" +
 		"set -g base-index 0\n" +
