@@ -129,7 +129,9 @@ func buildTmuxConf(self string) string {
 		// h opens the getting-started help overlay in the switchboard.
 		"bind-key -T orcai-chord h     { switch-client -T root ; select-window -t orcai:0 ; send-keys -t orcai:0 C-h }\n" +
 		// Pressing ctrl+space again exits the chord table without action.
-		"bind-key -T orcai-chord C-Space switch-client -T root\n"
+		"bind-key -T orcai-chord C-Space switch-client -T root\n" +
+		// Explicitly unbind removed chords so stale sessions don't keep them.
+		"unbind-key -T orcai-chord n\n"
 
 	return base + leaderBinding + chords
 }
