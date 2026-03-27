@@ -2290,7 +2290,7 @@ func (m Model) View() string {
 
 	leftW := m.leftColWidth()
 	feedW := max(w-leftW-1, 20)
-	contentH := max(h-1, 5) // reserve one line for bottom bar
+	contentH := max(h-2, 5) // reserve one line for top bar and one for bottom bar
 
 	// Signal board: grows with entries up to 40% of screen height.
 	// Minimum 5 rows so the box is always visible (header+border).
@@ -2332,48 +2332,49 @@ func (m Model) View() string {
 	}
 
 	body := strings.Join(rows, "\n")
+	topBar := m.viewTopBar(w)
 
 	// Dir picker overlay — highest priority, shown on top of everything.
 	if m.dirPickerOpen {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.dirPicker.viewDirPickerBox(w, m.ansiPalette()), w, h)
 	}
 
 	if m.helpOpen {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.viewHelpModal(w, h), w, h)
 	}
 
 	if m.confirmQuit {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.viewQuitModalBox(w), w, h)
 	}
 
 	// Pipeline mode-select / schedule-input overlay.
 	if m.pipelineLaunchMode == plModeSelect {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.viewPipelineModeSelect(w), w, h)
 	}
 	if m.pipelineLaunchMode == plScheduleInput {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.viewPipelineScheduleInput(w), w, h)
 	}
 
 	// Agent modal — floating overlay on top of the switchboard.
 	if m.agentModalOpen {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.viewAgentModalBox(w), w, h)
 	}
 
 	// Delete confirmation — floating overlay on top of the switchboard.
 	if m.confirmDelete {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.viewDeleteModalBox(w), w, h)
 	}
 
 	// Theme picker overlay.
 	if m.themePickerOpen && m.registry != nil {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		bundles := m.registry.All()
 		content := viewThemePicker(bundles, m.themePickerCursor, m.registry.Active(), w)
 		return overlayCenter(base, content, w, h)
@@ -2381,11 +2382,11 @@ func (m Model) View() string {
 
 	// Inbox detail overlay — full-screen detail view for a run result.
 	if m.inboxDetailOpen && len(m.inboxModel.Runs()) > 0 {
-		base := body + "\n" + m.viewBottomBar(w)
+		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 		return overlayCenter(base, m.viewInboxDetail(w, h), w, h)
 	}
 
-	return body + "\n" + m.viewBottomBar(w)
+	return topBar + "\n" + body + "\n" + m.viewBottomBar(w)
 }
 
 // viewQuitModalBox renders the quit confirmation popup box.
@@ -2829,6 +2830,48 @@ func (m Model) buildBanner(w int) string {
 	sub := pal.FG + "ABBS Switchboard" + rst
 
 	return logo + sep + sub
+}
+
+// viewTopBar renders a full-terminal-width header bar with the ORCAI title
+// centered. Colors are drawn from the active bundle's StatusBar field when
+// available; palette bg/fg are used as fallback.
+func (m Model) viewTopBar(w int) string {
+	if w <= 0 {
+		w = 120
+	}
+
+	title := "✦ ORCAI — ABBS ✦"
+
+	// Dracula-theme hardcoded fallbacks.
+	bgColor := "#282a36"
+	fgColor := "#f8f8f2"
+
+	if b := m.activeBundle(); b != nil {
+		// Prefer StatusBar-specific colors; fall back to palette colors.
+		if resolved := b.ResolveRef(b.StatusBar.BG); resolved != "" {
+			bgColor = resolved
+		} else if b.Palette.BG != "" {
+			bgColor = b.Palette.BG
+		}
+		if resolved := b.ResolveRef(b.StatusBar.FG); resolved != "" {
+			fgColor = resolved
+		} else if b.Palette.FG != "" {
+			fgColor = b.Palette.FG
+		}
+		// Use StatusBar.Format as title text if set and non-empty.
+		if b.StatusBar.Format != "" {
+			title = b.StatusBar.Format
+		}
+	}
+
+	titleStyle := lipgloss.NewStyle().
+		Width(w).
+		Align(lipgloss.Center).
+		Background(lipgloss.Color(bgColor)).
+		Foreground(lipgloss.Color(fgColor)).
+		Bold(true)
+
+	return titleStyle.Render(title)
 }
 
 // buildLauncherSection renders the Pipeline Launcher box.
