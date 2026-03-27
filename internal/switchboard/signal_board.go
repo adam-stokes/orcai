@@ -2,8 +2,6 @@ package switchboard
 
 import (
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/sahilm/fuzzy"
 )
@@ -222,22 +220,12 @@ func (m Model) buildSignalBoard(height, width int) []string {
 				title = string([]rune(title)[:maxTitleLen-1]) + "…"
 			}
 
-			cwdSuffix := ""
-			if entry.cwd != "" {
-				home, _ := os.UserHomeDir()
-				d := entry.cwd
-				if home != "" && strings.HasPrefix(d, home) {
-					d = "~" + d[len(home):]
-				}
-				cwdSuffix = "  " + pal.Dim + d + aRst
-			}
-
 			cursor := "  "
 			if absIdx == m.signalBoard.selectedIdx && m.signalBoardFocused {
 				cursor = pal.Accent + "> " + aRst
 			}
-			rowContent := fmt.Sprintf("%s[%s] %s  %-*s  %s%s",
-				cursor, led, ts, maxTitleLen, title, statusLabel, cwdSuffix)
+			rowContent := fmt.Sprintf("%s[%s] %s  %-*s  %s",
+				cursor, led, ts, maxTitleLen, title, statusLabel)
 			lines = append(lines, boxRow(rowContent, width, borderColor))
 		}
 	}

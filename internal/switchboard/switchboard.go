@@ -364,6 +364,21 @@ func MaxParallelJobs() int { return maxParallelJobs }
 // MakeTickMsg returns a tickMsg for use in tests.
 func MakeTickMsg() tea.Msg { return tickMsg(time.Now()) }
 
+// MakeJobDoneMsg returns a jobDoneMsg for use in tests.
+func MakeJobDoneMsg(id string) tea.Msg { return jobDoneMsg{id: id} }
+
+// FeedEntryStatus returns the FeedStatus for the entry with the given id,
+// and whether it was found. Used in tests to inspect state without going
+// through the rendered view.
+func (m Model) FeedEntryStatus(id string) (FeedStatus, bool) {
+	for _, e := range m.feed {
+		if e.id == id {
+			return e.status, true
+		}
+	}
+	return 0, false
+}
+
 // SignalBoardFocused returns the signal board focus state — used in tests.
 func (m Model) SignalBoardFocused() bool { return m.signalBoardFocused }
 
@@ -734,7 +749,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		m = m.setFeedStatus(msg.id, FeedDone)
+		// If any step recorded a failure, promote the entry to FeedFailed so
+		// the signal board and feed badge reflect the true outcome even when
+		// the pipeline process itself exited 0.
+		finalStatus := FeedDone
+		for _, e := range m.feed {
+			if e.id == msg.id {
+				for _, s := range e.steps {
+					if s.status == "failed" {
+						finalStatus = FeedFailed
+						break
+					}
+				}
+				break
+			}
+		}
+		m = m.setFeedStatus(msg.id, finalStatus)
 		delete(m.activeJobs, msg.id)
 		return m, nil
 
@@ -2246,9 +2276,18 @@ func (m Model) viewActivityFeed(height, width int) string {
 				appendRow(&allLines, fmt.Sprintf("  %s  %s%s", pal.Dim, cwdDisplay, aRst))
 			}
 
-			// Render per-step status badges if this entry has steps.
+			// Render per-step status badges wrapped to terminal width.
 			if len(entry.steps) > 0 {
-				var badges []string
+				const indent = "  "
+				sep := pal.Dim + "  ·  " + aRst
+				sepVis := len("  ·  ")
+				maxW := width - 4
+				if maxW < 8 {
+					maxW = 8
+				}
+				curLine := indent
+				curVis := len(indent)
+				first := true
 				for _, step := range entry.steps {
 					var col string
 					switch step.status {
@@ -2258,13 +2297,31 @@ func (m Model) viewActivityFeed(height, width int) string {
 						col = pal.Success
 					case "failed":
 						col = pal.Error
-					default: // "pending" or unknown
+					default:
 						col = pal.Dim
 					}
-					badges = append(badges, col+"["+step.status+"] "+step.id+aRst)
+					badge := col + stepGlyph(step.status) + " " + step.id + aRst
+					badgeVis := len(stripANSI(stepGlyph(step.status)+" "+step.id)) // 1 glyph + space + id
+					if !first {
+						// Check if adding separator + badge fits on current line.
+						if curVis+sepVis+badgeVis > maxW {
+							appendRow(&allLines, curLine)
+							curLine = indent
+							curVis = len(indent)
+							first = true
+						}
+					}
+					if !first {
+						curLine += sep
+						curVis += sepVis
+					}
+					curLine += badge
+					curVis += badgeVis
+					first = false
 				}
-				badgeLine := "  " + strings.Join(badges, "  ")
-				appendRow(&allLines, badgeLine)
+				if !first {
+					appendRow(&allLines, curLine)
+				}
 			}
 
 			// Cap output lines per entry: show the last feedLinesPerEntry lines only.
@@ -2457,6 +2514,26 @@ func boxRowCursorColor(content string, w int, borderColor string) string {
 	}
 	pad := max(availForContent-contentWidth, 0)
 	return borderColor + "│" + aRst + cursorMark + content + strings.Repeat(" ", pad) + borderColor + "│" + aRst
+}
+
+// stepGlyph returns the extended-ASCII glyph for a step status string.
+// Glyphs are chosen from the CP437/ANSI 128–255 range for visual variety:
+//
+//	pending  → · (U+00B7 middle dot)
+//	running  → » (U+00BB right double angle quotation)
+//	done     → ° (U+00B0 degree sign)
+//	failed   → × (U+00D7 multiplication sign)
+func stepGlyph(status string) string {
+	switch status {
+	case "running":
+		return "»"
+	case "done":
+		return "°"
+	case "failed":
+		return "×"
+	default: // "pending" or unknown
+		return "·"
+	}
 }
 
 func statusBadge(s FeedStatus, pal styles.ANSIPalette) (string, string) {

@@ -704,3 +704,144 @@ func TestFeedCursor_GAndGJumps(t *testing.T) {
 	}
 }
 
+// ── step badge rendering ──────────────────────────────────────────────────────
+
+func TestStepBadges_GlyphsPresent(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m3 := m2.(switchboard.Model)
+	m3 = m3.AddFeedEntry("job1", "pipeline: test", switchboard.FeedRunning, nil)
+	// Inject step statuses for all four states.
+	for _, tc := range []struct {
+		id     string
+		status string
+		glyph  string
+	}{
+		{"step-pending", "pending", "·"},
+		{"step-running", "running", "»"},
+		{"step-done", "done", "°"},
+		{"step-failed", "failed", "×"},
+	} {
+		m3x, _ := m3.Update(switchboard.StepStatusMsg{FeedID: "job1", StepID: tc.id, Status: tc.status})
+		m3 = m3x.(switchboard.Model)
+	}
+	view := m3.View()
+	for _, glyph := range []string{"·", "»", "°", "×"} {
+		if !strings.Contains(view, glyph) {
+			t.Errorf("View() missing step glyph %q in feed output:\n%s", glyph, view)
+		}
+	}
+}
+
+func TestStepBadges_SingleRowFewSteps(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 200, Height: 40})
+	m3 := m2.(switchboard.Model)
+	m3 = m3.AddFeedEntry("job1", "pipeline: test", switchboard.FeedRunning, nil)
+	for i := range 3 {
+		id := fmt.Sprintf("step-%d", i)
+		m3x, _ := m3.Update(switchboard.StepStatusMsg{FeedID: "job1", StepID: id, Status: "done"})
+		m3 = m3x.(switchboard.Model)
+	}
+	view := m3.View()
+	// With a wide terminal and only 3 short steps all badges should fit on one line.
+	// Verify all three step IDs appear somewhere in the view.
+	for i := range 3 {
+		id := fmt.Sprintf("step-%d", i)
+		if !strings.Contains(view, id) {
+			t.Errorf("View() missing step id %q in rendered output", id)
+		}
+	}
+}
+
+func TestStepBadges_WrapsOnNarrowTerminal(t *testing.T) {
+	m := switchboard.New()
+	// Use a narrow terminal that cannot fit many step badges on one line.
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 40})
+	m3 := m2.(switchboard.Model)
+	m3 = m3.AddFeedEntry("job1", "pipeline: test", switchboard.FeedRunning, nil)
+	// Add enough steps to force wrapping at width 40.
+	for i := range 6 {
+		id := fmt.Sprintf("step-with-long-name-%d", i)
+		m3x, _ := m3.Update(switchboard.StepStatusMsg{FeedID: "job1", StepID: id, Status: "done"})
+		m3 = m3x.(switchboard.Model)
+	}
+	view := m3.View()
+	// All step IDs must still appear (none truncated/dropped).
+	for i := range 6 {
+		id := fmt.Sprintf("step-with-long-name-%d", i)
+		if !strings.Contains(view, id) {
+			t.Errorf("View() missing step id %q after narrow-width wrap", id)
+		}
+	}
+}
+
+// ── step failure → FeedFailed promotion ──────────────────────────────────────
+
+func TestJobDoneMsg_AllStepsDone_ProducesFeedDone(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m3 := m2.(switchboard.Model)
+	m3 = m3.AddFeedEntry("job1", "pipeline: test", switchboard.FeedRunning, nil)
+	// Record two done steps.
+	for _, id := range []string{"step-a", "step-b"} {
+		mx, _ := m3.Update(switchboard.StepStatusMsg{FeedID: "job1", StepID: id, Status: "done"})
+		m3 = mx.(switchboard.Model)
+	}
+	// Simulate pipeline process exit 0.
+	mx, _ := m3.Update(switchboard.MakeJobDoneMsg("job1"))
+	m3 = mx.(switchboard.Model)
+
+	status, ok := m3.FeedEntryStatus("job1")
+	if !ok {
+		t.Fatal("feed entry 'job1' not found after jobDoneMsg")
+	}
+	if status != switchboard.FeedDone {
+		t.Errorf("expected FeedDone when all steps succeeded, got %v", status)
+	}
+}
+
+func TestJobDoneMsg_AnyStepFailed_ProducesFeedFailed(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m3 := m2.(switchboard.Model)
+	m3 = m3.AddFeedEntry("job1", "pipeline: test", switchboard.FeedRunning, nil)
+	// One step done, one step failed.
+	for _, tc := range []struct{ id, status string }{
+		{"step-a", "done"},
+		{"step-b", "failed"},
+	} {
+		mx, _ := m3.Update(switchboard.StepStatusMsg{FeedID: "job1", StepID: tc.id, Status: tc.status})
+		m3 = mx.(switchboard.Model)
+	}
+	// Simulate pipeline process exit 0 (process succeeded, step failed).
+	mx, _ := m3.Update(switchboard.MakeJobDoneMsg("job1"))
+	m3 = mx.(switchboard.Model)
+
+	status, ok := m3.FeedEntryStatus("job1")
+	if !ok {
+		t.Fatal("feed entry 'job1' not found after jobDoneMsg")
+	}
+	if status != switchboard.FeedFailed {
+		t.Errorf("expected FeedFailed when a step failed, got %v", status)
+	}
+}
+
+func TestJobDoneMsg_NoSteps_ProducesFeedDone(t *testing.T) {
+	m := switchboard.New()
+	m2, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m3 := m2.(switchboard.Model)
+	m3 = m3.AddFeedEntry("job1", "pipeline: test", switchboard.FeedRunning, nil)
+	// No step status messages — simulates a pipeline with no step events.
+	mx, _ := m3.Update(switchboard.MakeJobDoneMsg("job1"))
+	m3 = mx.(switchboard.Model)
+
+	status, ok := m3.FeedEntryStatus("job1")
+	if !ok {
+		t.Fatal("feed entry 'job1' not found after jobDoneMsg")
+	}
+	if status != switchboard.FeedDone {
+		t.Errorf("expected FeedDone when no steps recorded, got %v", status)
+	}
+}
+

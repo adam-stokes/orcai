@@ -64,10 +64,11 @@ func createJobWindow(feedID, shellCmd, label, startDir string) (target, logFile,
 
 	var windowCmd string
 	if shellCmd != "" {
-		// Tee output to log file; write exit code to done file on completion.
-		// No exec $SHELL — remain-on-exit keeps the window alive so the user
-		// can inspect output. Window shows "[pane is dead]" when done.
-		windowCmd = fmt.Sprintf("{ %s ; } 2>&1 | tee %s ; echo $? > %s", shellCmd, logFile, doneFile)
+		// Tee output to log file; write exit code to done file on completion;
+		// then exec $SHELL so the pane transitions to a live interactive shell
+		// rather than showing "[pane is dead]". remain-on-exit is set as a
+		// safety net in case $SHELL itself exits.
+		windowCmd = fmt.Sprintf("{ %s ; } 2>&1 | tee %s ; echo $? > %s ; exec $SHELL", shellCmd, logFile, doneFile)
 	} else {
 		// Legacy: in-process agent job — tail the log file live.
 		windowCmd = "tail -f " + logFile + " 2>/dev/null"
