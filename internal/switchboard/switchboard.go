@@ -1890,12 +1890,15 @@ func (m Model) buildLauncherSection(w int) []string {
 			if len(displayName) > maxNameLen {
 				displayName = displayName[:maxNameLen-1] + "…"
 			}
-			contentVis := 2 + len(displayName)
-			if i == m.launcher.selected && m.launcher.focused {
-				content := pal.SelBG + aWht + "  " + displayName + aRst
-				rows = append(rows, borderColor+"│"+content+strings.Repeat(" ", max(w-2-contentVis, 0))+borderColor+"│"+aRst)
+			if i == m.launcher.selected {
+				cursor := pal.Dim
+				if m.launcher.focused {
+					cursor = pal.Accent
+				}
+				content := cursor + "> " + pal.FG + displayName + aRst
+				rows = append(rows, boxRow(content, w, borderColor))
 			} else {
-				content := pal.Accent + "  " + pal.Accent + displayName + aRst
+				content := "  " + pal.Dim + displayName + aRst
 				rows = append(rows, boxRow(content, w, borderColor))
 			}
 		}
@@ -1943,16 +1946,15 @@ func (m Model) buildAgentSection(w int) []string {
 			if len(label) > maxLen {
 				label = label[:maxLen-1] + "…"
 			}
-			contentVis := 4 + len(label)
 			if i == m.agent.selectedProvider {
-				sel := pal.Accent
+				cursor := pal.Dim
 				if m.agent.focused {
-					sel = pal.SelBG + aWht
+					cursor = pal.Accent
 				}
-				content := sel + "  > " + label + aRst
-				rows = append(rows, borderColor+"│"+content+strings.Repeat(" ", max(w-2-contentVis, 0))+borderColor+"│"+aRst)
+				content := cursor + "> " + pal.FG + label + aRst
+				rows = append(rows, boxRow(content, w, borderColor))
 			} else {
-				content := pal.Dim + "    " + pal.Accent + label + aRst
+				content := "  " + pal.Dim + label + aRst
 				rows = append(rows, boxRow(content, w, borderColor))
 			}
 		}
