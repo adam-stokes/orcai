@@ -256,9 +256,8 @@ type Model struct {
 	inboxFocused            bool
 	store                   *store.Store
 	inboxDetailOpen         bool
-	inboxDetailIdx          int
-	inboxDetailScroll       int
-	inboxDetailConfirmDelete bool
+	inboxDetailIdx    int
+	inboxDetailScroll int
 }
 
 // New creates a new Switchboard Model, discovering pipelines and providers.
@@ -828,6 +827,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.inboxDetailOpen {
 				return m.handleKey(msg)
 			}
+			// Global overlay keys pass through even when inbox is focused.
+			switch msg.String() {
+			case "ctrl+h", "T":
+				return m.handleKey(msg)
+			}
 			// Check for enter to open the detail overlay.
 			if msg.String() == "enter" {
 				idx := m.inboxModel.SelectedIndex()
@@ -836,7 +840,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.inboxDetailOpen = true
 					m.inboxDetailIdx = idx
 					m.inboxDetailScroll = 0
-					m.inboxDetailConfirmDelete = false
 				}
 				return m, nil
 			}
@@ -904,15 +907,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		switch key {
 		case "q", "esc":
 			m.inboxDetailOpen = false
-			m.inboxDetailConfirmDelete = false
 		case "n":
-			m.inboxDetailConfirmDelete = false
 			if len(runs) > 0 {
 				m.inboxDetailIdx = (m.inboxDetailIdx + 1) % len(runs)
 				m.inboxDetailScroll = 0
 			}
 		case "p":
-			m.inboxDetailConfirmDelete = false
 			if len(runs) > 0 {
 				m.inboxDetailIdx = (m.inboxDetailIdx - 1 + len(runs)) % len(runs)
 				m.inboxDetailScroll = 0
@@ -931,31 +931,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		case "pgdown", "]":
 			m.inboxDetailScroll += 10
-		case "r":
-			m.inboxDetailConfirmDelete = false
-			if len(runs) > 0 {
-				run := runs[m.inboxDetailIdx]
-				return m, func() tea.Msg {
-					return inbox.RerunMsg{Kind: run.Kind, Target: run.Name}
-				}
-			}
-		case "d":
-			if !m.inboxDetailConfirmDelete {
-				m.inboxDetailConfirmDelete = true
-			} else {
-				// Second d — confirmed delete.
-				m.inboxDetailConfirmDelete = false
-				if len(runs) > 0 && m.store != nil {
-					runID := runs[m.inboxDetailIdx].ID
-					_ = m.store.DeleteRun(runID)
-				}
-				m.inboxDetailOpen = false
-				var inboxCmd tea.Cmd
-				m.inboxModel, inboxCmd = m.inboxModel.Update(inbox.RunCompletedMsg{})
-				return m, inboxCmd
-			}
 		default:
-			m.inboxDetailConfirmDelete = false
 		}
 		return m, nil
 	}
@@ -2679,8 +2655,6 @@ func (m Model) viewBottomBar(width int) string {
 	case m.inboxFocused:
 		parts = []string{
 			hint("enter", "open"),
-			hint("d", "delete"),
-			hint("r", "re-run"),
 			hint("↑↓", "nav"),
 			hint("tab", "focus"),
 			hint("i", "inbox"),

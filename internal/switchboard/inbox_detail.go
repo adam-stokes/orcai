@@ -139,27 +139,21 @@ func (m Model) viewInboxDetail(w, h int) string {
 		Padding(0, 1).
 		Render(strings.Join(visible, "\n"))
 
-	// Footer: scroll hint + key hints, or confirm delete message.
+	// Footer: scroll hint + key hints.
+	total := len(lines)
+	dimStyle := lipgloss.NewStyle().Foreground(mc.dim)
+	accentStyle := lipgloss.NewStyle().Foreground(mc.accent)
 	var footer string
-	if m.inboxDetailConfirmDelete {
-		footer = lipgloss.NewStyle().Foreground(mc.error).
+	if total > visibleH {
+		scrollHint := accentStyle.Render("j/k  [/]") + dimStyle.Render(" scroll  ")
+		keyHints := dimStyle.Render("[n]ext  [p]rev  [q]uit")
+		footer = lipgloss.NewStyle().Foreground(mc.dim).
 			Width(innerW).Padding(0, 1).
-			Render("Press [d] again to confirm delete, any other key to cancel")
+			Render(scrollHint + keyHints)
 	} else {
-		total := len(lines)
-		dimStyle := lipgloss.NewStyle().Foreground(mc.dim)
-		accentStyle := lipgloss.NewStyle().Foreground(mc.accent)
-		if total > visibleH {
-			scrollHint := accentStyle.Render("j/k  [/]") + dimStyle.Render(" scroll  ")
-			keyHints := dimStyle.Render("[n]ext  [p]rev  [r]erun  [d]elete  [q]uit")
-			footer = lipgloss.NewStyle().Foreground(mc.dim).
-				Width(innerW).Padding(0, 1).
-				Render(scrollHint + keyHints)
-		} else {
-			footer = lipgloss.NewStyle().Foreground(mc.dim).
-				Width(innerW).Padding(0, 1).
-				Render("[n]ext  [p]rev  [r]erun  [d]elete  [q]uit")
-		}
+		footer = lipgloss.NewStyle().Foreground(mc.dim).
+			Width(innerW).Padding(0, 1).
+			Render("[n]ext  [p]rev  [q]uit")
 	}
 
 	boxContent := strings.Join([]string{
