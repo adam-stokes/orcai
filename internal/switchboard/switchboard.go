@@ -125,6 +125,7 @@ type jobHandle struct {
 	ch         chan tea.Msg
 	tmuxWindow string
 	logFile    string // /tmp/orcai-<feedID>.log — tailed in the tmux window
+	storeRunID int64  // non-zero when run was recorded in the result store
 }
 
 // ── Tea messages ──────────────────────────────────────────────────────────────
@@ -903,6 +904,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m = m.setFeedStatus(msg.id, finalStatus)
+		if jh, ok := m.activeJobs[msg.id]; ok && jh.storeRunID != 0 && m.store != nil {
+			exitCode := 0
+			if finalStatus == FeedFailed {
+				exitCode = 1
+			}
+			var out string
+			for _, e := range m.feed {
+				if e.id == msg.id {
+					out = strings.Join(e.lines, "\n")
+					break
+				}
+			}
+			_ = m.store.RecordRunComplete(jh.storeRunID, exitCode, out, "")
+		}
 		delete(m.activeJobs, msg.id)
 		return m, nil
 
@@ -926,6 +941,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.setFeedStatus(msg.id, FeedFailed)
 		if msg.err != nil {
 			m = m.appendFeedLine(msg.id, "error: "+msg.err.Error())
+		}
+		if jh, ok := m.activeJobs[msg.id]; ok && jh.storeRunID != 0 && m.store != nil {
+			var out string
+			for _, e := range m.feed {
+				if e.id == msg.id {
+					out = strings.Join(e.lines, "\n")
+					break
+				}
+			}
+			if msg.err != nil {
+				out += "\nerror: " + msg.err.Error()
+			}
+			_ = m.store.RecordRunComplete(jh.storeRunID, 1, out, "")
 		}
 		delete(m.activeJobs, msg.id)
 		return m, nil
@@ -2086,7 +2114,13 @@ func (m Model) submitAgentJob() (Model, tea.Cmd) {
 
 	ch := make(chan tea.Msg, 256)
 	_, cancel := context.WithCancel(context.Background())
-	m.activeJobs[feedID] = &jobHandle{id: feedID, cancel: cancel, ch: ch, tmuxWindow: windowName, logFile: logFile}
+	jh := &jobHandle{id: feedID, cancel: cancel, ch: ch, tmuxWindow: windowName, logFile: logFile}
+	if m.store != nil {
+		if runID, err := m.store.RecordRunStart("agent", title); err == nil {
+			jh.storeRunID = runID
+		}
+	}
+	m.activeJobs[feedID] = jh
 
 	cmd := runAgentCmdCh(adapter, input, vars, feedID, ch, cancel)
 	drain := drainChan(ch)
