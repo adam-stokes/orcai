@@ -1148,9 +1148,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.cronPanel.focused = false
 			m.launcher.focused = true
 		} else if m.feedFocused {
-			// feed → launcher
+			// feed → cron
 			m.feedFocused = false
-			m.launcher.focused = true
+			m.cronPanel.focused = true
 		} else if m.inboxFocused {
 			// inbox → feed
 			m.inboxFocused = false

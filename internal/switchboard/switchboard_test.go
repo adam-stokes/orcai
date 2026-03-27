@@ -616,30 +616,32 @@ func TestTabCycle_FullCycle(t *testing.T) {
 	}
 }
 
-// TestTabFromFeed_FocusesLauncher verifies that pressing Tab when the Activity
-// Feed is focused moves focus back to the Pipeline Launcher.
-func TestTabFromFeed_FocusesLauncher(t *testing.T) {
+// TestTabFromFeed_FocusesCron verifies that pressing Tab when the Activity
+// Feed is focused moves focus to the Cron panel (feed → cron → launcher cycle).
+func TestTabFromFeed_FocusesCron(t *testing.T) {
 	m := switchboard.NewWithPipelines([]string{"alpha", "beta"})
-	// Focus feed directly via the public setter.
 	m = m.SetFeedFocused(true)
 
-	// Press Tab — feed → launcher.
+	// First Tab: feed → cron.
 	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	m3 := m2.(switchboard.Model)
+	if !m3.CronPanelFocused() {
+		t.Errorf("expected cron panel focused after Tab-from-feed")
+	}
 
-	// Confirm feed is no longer focused: j should now move launcher cursor, not feed.
-	// Add feed entries so we can detect if feedCursor accidentally moved.
+	// Second Tab: cron → launcher. Feed cursor should not move.
 	m3 = m3.AddFeedEntry("id1", "job one", switchboard.FeedDone, []string{"line a", "line b"})
 	cursorBefore := m3.FeedCursor()
-	m4, _ := m3.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m4, _ := m3.Update(tea.KeyMsg{Type: tea.KeyTab})
 	m5 := m4.(switchboard.Model)
-	if m5.FeedCursor() != cursorBefore {
-		t.Errorf("feedCursor should not change after Tab-from-feed (launcher should be focused), got %d → %d",
-			cursorBefore, m5.FeedCursor())
+	if m5.CronPanelFocused() {
+		t.Errorf("expected cron panel unfocused after second Tab")
 	}
-	// Launcher cursor should have advanced (was 0, now 1 with 2 pipelines).
-	if m5.Cursor() != 1 {
-		t.Errorf("launcher cursor should be 1 after j (launcher focused after Tab-from-feed), got %d", m5.Cursor())
+	m6, _ := m5.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m7 := m6.(switchboard.Model)
+	if m7.FeedCursor() != cursorBefore {
+		t.Errorf("feedCursor should not change when launcher is focused, got %d → %d",
+			cursorBefore, m7.FeedCursor())
 	}
 }
 

@@ -36,6 +36,9 @@ header_style:
     inbox:
       accent: "#bd93f9"
       text:   "#282a36"
+    cron:
+      accent: "#bd93f9"
+      text:   "#282a36"
     modal:
       accent: "#bd93f9"
       text:   "#282a36"
