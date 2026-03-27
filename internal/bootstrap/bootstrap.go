@@ -102,7 +102,7 @@ func buildTmuxConf(self string) string {
 	leaderBinding := "bind-key -n C-Space switch-client -T orcai-chord\n"
 
 	// Chord bindings inside the orcai-chord key table.
-	chords := "bind-key -T orcai-chord q     { switch-client -T root ; display-popup -E -w 44 -h 18 \"" + self + " _help quit\" }\n" +
+	chords := "bind-key -T orcai-chord q     { switch-client -T root ; select-window -t orcai:0 ; send-keys -t orcai:0 C-q }\n" +
 		"bind-key -T orcai-chord d     { switch-client -T root ; display-popup -E -w 44 -h 18 \"" + self + " _help detach\" }\n" +
 		"bind-key -T orcai-chord r     { switch-client -T root ; display-popup -E -w 44 -h 18 \"" + self + " _help reload\" }\n" +
 		"bind-key -T orcai-chord o     { switch-client -T root ; display-popup -E -w 68 -h 24 \"" + self + " ollama\" }\n" +

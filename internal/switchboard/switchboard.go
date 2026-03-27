@@ -743,6 +743,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			for _, jh := range m.activeJobs {
 				jh.cancel()
 			}
+			exec.Command("tmux", "kill-session", "-t", "orcai").Run() //nolint:errcheck
 			return m, tea.Quit
 		default:
 			m.confirmQuit = false
@@ -821,12 +822,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	switch key {
-	case "ctrl+c":
-		if len(m.activeJobs) > 0 {
-			m.confirmQuit = true
-			return m, nil
-		}
-		return m, tea.Quit
+	case "ctrl+c", "ctrl+q":
+		m.confirmQuit = true
+		return m, nil
 
 	case "tab":
 		if m.feedFocused {
@@ -1627,15 +1625,19 @@ func (m Model) viewQuitModalBox(w int) string {
 		return lipgloss.NewStyle().Foreground(fg).Width(innerW).Padding(0, 1)
 	}
 
-	rows := []string{
-		headerStyle.Render("ORCAI  Quit?"),
-		rowStyle(mc.fg).Render(fmt.Sprintf("%d %s still running.", jobs, jobWord)),
+	rows := []string{headerStyle.Render("ORCAI  Quit?")}
+	if jobs > 0 {
+		rows = append(rows, rowStyle(mc.error).Render(fmt.Sprintf("%d %s still running.", jobs, jobWord)))
+	} else {
+		rows = append(rows, rowStyle(mc.fg).Render("Quit ORCAI?"))
+	}
+	rows = append(rows,
 		"",
 		rowStyle(mc.fg).Render(
-			lipgloss.NewStyle().Foreground(mc.accent).Render("[y]") + "es   " +
-				lipgloss.NewStyle().Foreground(mc.dim).Render("[n]") + "o / esc",
+			lipgloss.NewStyle().Foreground(mc.accent).Bold(true).Render("[y]")+"es   "+
+				lipgloss.NewStyle().Foreground(mc.dim).Render("[n]")+"o / esc",
 		),
-	}
+	)
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
