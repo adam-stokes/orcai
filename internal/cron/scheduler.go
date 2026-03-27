@@ -137,7 +137,7 @@ func (s *Scheduler) runEntry(entry Entry) {
 	case "pipeline":
 		args = []string{"pipeline", "run", entry.Target}
 	case "agent":
-		args = []string{"agent", entry.Target}
+		args = []string{"agent", "run", entry.Target}
 	default:
 		s.logError("cron: unknown entry kind", "name", entry.Name, "kind", entry.Kind)
 		return

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/adam-stokes/orcai/internal/cron"
+	"github.com/adam-stokes/orcai/internal/store"
 	"github.com/adam-stokes/orcai/internal/themes"
 )
 
@@ -22,7 +23,14 @@ func New(bundle *themes.Bundle) (Model, error) {
 		ReportTimestamp: true,
 		Prefix:          "orcai-cron",
 	})
-	sched := cron.New(logger, nil)
+	// Open the result store so cron runs appear in the switchboard inbox.
+	// A failure is non-fatal — the scheduler runs without persistence.
+	s, storeErr := store.Open()
+	if storeErr != nil {
+		logger.Warn("result store unavailable", "error", storeErr)
+	}
+
+	sched := cron.New(logger, s)
 
 	entries, _ := cron.LoadConfig()
 
@@ -32,6 +40,7 @@ func New(bundle *themes.Bundle) (Model, error) {
 
 	m := Model{
 		scheduler:   sched,
+		runStore:    s,
 		logger:      logger,
 		bundle:      bundle,
 		entries:     entries,

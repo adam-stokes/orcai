@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/adam-stokes/orcai/internal/cron"
+	"github.com/adam-stokes/orcai/internal/store"
 	"github.com/adam-stokes/orcai/internal/themes"
 )
 
@@ -74,6 +75,7 @@ const logBufMax = 500
 // Model is the BubbleTea model for the orcai-cron TUI.
 type Model struct {
 	scheduler *cron.Scheduler
+	runStore  *store.Store   // result store for recording run history; may be nil
 	logger    *log.Logger    // structured logger wired to the log pane
 	bundle    *themes.Bundle // active theme; nil = Dracula fallback
 	entries   []cron.Entry
