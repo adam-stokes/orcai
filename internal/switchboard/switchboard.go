@@ -28,6 +28,7 @@ import (
 	orcaicron "github.com/adam-stokes/orcai/internal/cron"
 	"github.com/adam-stokes/orcai/internal/inbox"
 	"github.com/adam-stokes/orcai/internal/modal"
+	"github.com/adam-stokes/orcai/internal/panelrender"
 	"github.com/adam-stokes/orcai/internal/picker"
 	"github.com/adam-stokes/orcai/internal/pipeline"
 	"github.com/adam-stokes/orcai/internal/plugin"
@@ -3406,24 +3407,15 @@ func (m Model) viewBottomBar(width int) string {
 // ── Box drawing helpers ────────────────────────────────────────────────────────
 
 func boxTop(w int, title, borderColor, labelColor string) string {
-	if title == "" {
-		return borderColor + "┌" + strings.Repeat("─", max(w-2, 0)) + "┐" + aRst
-	}
-	label := " " + title + " "
-	dashes := max(w-2-lipgloss.Width(label), 0)
-	left := dashes / 2
-	right := dashes - left
-	return borderColor + "┌" + strings.Repeat("─", left) + labelColor + label + borderColor + strings.Repeat("─", right) + "┐" + aRst
+	return panelrender.BoxTop(w, title, borderColor, labelColor)
 }
 
 func boxBot(w int, borderColor string) string {
-	return borderColor + "└" + strings.Repeat("─", max(w-2, 0)) + "┘" + aRst
+	return panelrender.BoxBot(w, borderColor)
 }
 
 func boxRow(content string, w int, borderColor string) string {
-	inner := w - 2
-	pad := max(inner-lipgloss.Width(content), 0)
-	return borderColor + "│" + aRst + content + strings.Repeat(" ", pad) + borderColor + "│" + aRst
+	return panelrender.BoxRow(content, w, borderColor)
 }
 
 // boxRowCursor renders a feed row with a "> " cursor marker prepended to the

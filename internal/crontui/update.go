@@ -42,6 +42,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if gr := themes.GlobalRegistry(); gr != nil {
 			if b, ok := gr.Get(msg.name); ok {
 				m.bundle = b
+				m.lastThemeName = b.Name
 			}
 		}
 		// Re-schedule the listener to keep receiving future changes.
@@ -49,6 +50,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, listenTheme(m.themeCh)
 		}
 		return m, nil
+
+	case themeFilePollMsg:
+		// Cross-process theme detection: re-read the active_theme file.
+		// This fires every 5 s in standalone mode to pick up changes from the
+		// switchboard process.
+		if gr := themes.GlobalRegistry(); gr != nil {
+			if name := gr.RefreshActive(); name != "" && name != m.lastThemeName {
+				m.bundle = gr.Active()
+				m.lastThemeName = name
+			}
+		}
+		return m, pollThemeFile()
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)

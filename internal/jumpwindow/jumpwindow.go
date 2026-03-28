@@ -14,6 +14,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/adam-stokes/orcai/internal/panelrender"
+	"github.com/adam-stokes/orcai/internal/styles"
 	"github.com/adam-stokes/orcai/internal/themes"
 )
 
@@ -273,90 +275,91 @@ func (m model) View() string {
 		w = 70
 	}
 
-	headerStyle := lipgloss.NewStyle().
-		Background(m.pal.titleBG).
-		Foreground(m.pal.titleFG).
-		Bold(true).
-		Width(w).
-		Padding(0, 1)
-
-	inputRow := lipgloss.NewStyle().
-		Width(w).
-		Padding(0, 1).
-		Render(m.input.View())
-
-	sectionStyle := lipgloss.NewStyle().
-		Foreground(m.pal.accent).
-		Width(w).
-		Padding(0, 1)
-
-	selectedStyle := lipgloss.NewStyle().
-		Background(m.pal.selBG).
-		Foreground(m.pal.accent).
-		Width(w)
-
-	normalStyle := lipgloss.NewStyle().
-		Foreground(m.pal.fg).
-		Width(w).
-		Padding(0, 2)
-
-	dimStyle := lipgloss.NewStyle().Foreground(m.pal.dim)
-
-	rows := []string{
-		headerStyle.Render("ORCAI  Jump to Window"),
-		inputRow,
+	// Resolve bundle for ANSI palette — re-read from global registry if set.
+	var bundle *themes.Bundle
+	if gr := themes.GlobalRegistry(); gr != nil {
+		bundle = gr.Active()
 	}
 
-	if len(m.filtered) == 0 {
-		rows = append(rows,
-			sectionStyle.Render("— active jobs —"),
-			lipgloss.NewStyle().
-				Foreground(m.pal.dim).
-				Width(w).
-				Padding(0, 2).
-				Render("no windows found"),
-		)
+	// ANSI palette for box-drawing rows.
+	var apal styles.ANSIPalette
+	if bundle != nil {
+		apal = styles.BundleANSI(bundle)
 	} else {
-		rows = append(rows, sectionStyle.Render("— active jobs —"))
+		apal = styles.ANSIPalette{
+			Accent: "\x1b[35m",
+			Dim:    "\x1b[2m",
+			FG:     "\x1b[97m",
+			BG:     "\x1b[40m",
+			Border: "\x1b[36m",
+			SelBG:  "\x1b[44m",
+		}
+	}
+
+	// Build rows using ANSI box drawing to match switchboard panels.
+	var rows []string
+
+	// Header — sprite or dynamic panel header.
+	if sprite := panelrender.PanelHeader(bundle, "jump_window", w, apal.Accent); sprite != nil {
+		rows = append(rows, sprite...)
+	} else {
+		rows = append(rows, panelrender.BoxTop(w, "ORCAI  Jump to Window", apal.Border, apal.Accent))
+	}
+
+	// Search input row.
+	inputContent := "  " + m.input.View()
+	rows = append(rows, panelrender.BoxRow(inputContent, w, apal.Border))
+
+	// Section: active jobs.
+	rows = append(rows, panelrender.BoxRow(apal.Accent+"— active jobs —"+panelrender.RST, w, apal.Border))
+
+	if len(m.filtered) == 0 {
+		rows = append(rows, panelrender.BoxRow(apal.Dim+"  no windows found"+panelrender.RST, w, apal.Border))
+	} else {
 		for i, win := range m.filtered {
 			label := win.name
 			if i == m.selected {
-				rows = append(rows, selectedStyle.Render("  "+label))
+				content := apal.SelBG + apal.Accent + "  " + label + panelrender.RST
+				rows = append(rows, panelrender.BoxRow(content, w, apal.Border))
 			} else {
-				rows = append(rows, normalStyle.Render(label))
+				rows = append(rows, panelrender.BoxRow(apal.FG+"  "+label+panelrender.RST, w, apal.Border))
 			}
 		}
 	}
 
+	// Section: sysop (orcai-cron session windows).
 	if len(m.sysop) > 0 {
-		sysopSectionStyle := lipgloss.NewStyle().
-			Foreground(m.pal.dim).
-			Width(w).
-			Padding(0, 1)
-		rows = append(rows, sysopSectionStyle.Render("— sysop —"))
+		rows = append(rows, panelrender.BoxRow(apal.Dim+"— sysop —"+panelrender.RST, w, apal.Border))
 		for i, win := range m.sysop {
 			label := win.name
 			sysopIdx := len(m.filtered) + i
 			if m.selected == sysopIdx {
-				rows = append(rows, selectedStyle.Render("  "+label))
+				content := apal.SelBG + apal.Accent + "  " + label + panelrender.RST
+				rows = append(rows, panelrender.BoxRow(content, w, apal.Border))
 			} else {
-				rows = append(rows, normalStyle.Render(label))
+				rows = append(rows, panelrender.BoxRow(apal.Dim+"  "+label+panelrender.RST, w, apal.Border))
 			}
 		}
 	}
 
-	hintRow := lipgloss.NewStyle().
-		Foreground(m.pal.dim).
-		Width(w).
-		Padding(0, 1).
-		Render(fmt.Sprintf("%s nav  %s select  %s cancel",
-			dimStyle.Render("↑↓"),
-			dimStyle.Render("enter"),
-			dimStyle.Render("esc"),
-		))
+	// Hint bar row (accent keys, dim descriptions).
+	hint := func(key, desc string) string {
+		return apal.Accent + key + apal.Dim + " " + desc + panelrender.RST
+	}
+	sep := apal.Dim + " · " + panelrender.RST
+	hintContent := strings.Join([]string{
+		hint("↑↓", "nav"),
+		hint("enter", "select"),
+		hint("e", "edit"),
+		hint("esc", "cancel"),
+	}, sep)
+	rows = append(rows,
+		panelrender.BoxRow("", w, apal.Border),
+		panelrender.BoxRow(hintContent, w, apal.Border),
+		panelrender.BoxBot(w, apal.Border),
+	)
 
-	rows = append(rows, "", hintRow)
-	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+	return strings.Join(rows, "\n")
 }
 
 func max(a, b int) int {

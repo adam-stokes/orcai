@@ -8,10 +8,29 @@ import (
 
 	"github.com/adam-stokes/orcai/internal/cron"
 	"github.com/adam-stokes/orcai/internal/modal"
-	"github.com/adam-stokes/orcai/internal/translations"
+	"github.com/adam-stokes/orcai/internal/panelrender"
+	"github.com/adam-stokes/orcai/internal/styles"
 )
 
-// viewPal caches resolved lipgloss colors for the current render pass.
+// ansiPal returns the ANSI-escape palette for the current bundle.
+// Falls back to Dracula hardcoded sequences when bundle is nil.
+func (m Model) ansiPal() styles.ANSIPalette {
+	if m.bundle != nil {
+		return styles.BundleANSI(m.bundle)
+	}
+	return styles.ANSIPalette{
+		Accent:  "\x1b[35m",
+		Dim:     "\x1b[2m",
+		Success: "\x1b[32m",
+		Error:   "\x1b[31m",
+		FG:      "\x1b[97m",
+		BG:      "\x1b[40m",
+		Border:  "\x1b[36m",
+		SelBG:   "\x1b[44m",
+	}
+}
+
+// viewPal caches resolved lipgloss colors for overlay rendering.
 type viewPal struct {
 	accent  lipgloss.Color
 	fg      lipgloss.Color
@@ -19,8 +38,8 @@ type viewPal struct {
 	selBG   lipgloss.Color
 	errCol  lipgloss.Color
 	success lipgloss.Color
-	border  lipgloss.Color
 	pink    lipgloss.Color
+	bg      lipgloss.Color
 }
 
 // pal resolves the active palette from the bundle, falling back to Dracula.
@@ -34,8 +53,8 @@ func (m Model) pal() viewPal {
 			selBG:   lipgloss.Color(b.Palette.Border),
 			errCol:  lipgloss.Color(b.Palette.Error),
 			success: lipgloss.Color(b.Palette.Success),
-			border:  lipgloss.Color(b.Palette.Dim),
-			pink:    lipgloss.Color(b.Palette.Accent), // fallback — themes don't have pink
+			pink:    lipgloss.Color(b.Palette.Accent),
+			bg:      lipgloss.Color(b.Palette.BG),
 		}
 	}
 	return viewPal{
@@ -45,22 +64,9 @@ func (m Model) pal() viewPal {
 		selBG:   lipgloss.Color(draculaCurrent),
 		errCol:  lipgloss.Color(draculaRed),
 		success: lipgloss.Color(draculaGreen),
-		border:  lipgloss.Color(draculaComment),
 		pink:    lipgloss.Color(draculaPink),
+		bg:      lipgloss.Color(draculaBg),
 	}
-}
-
-// panelBand renders a full-width accent-background title band, used as the
-// header inside each pane. Falls back to a plain bold title if no bundle.
-func (m Model) panelBand(title string, innerWidth int) string {
-	p := m.pal()
-	return lipgloss.NewStyle().
-		Background(p.accent).
-		Foreground(p.fg).
-		Bold(true).
-		Width(innerWidth).
-		Align(lipgloss.Center).
-		Render(title)
 }
 
 // View renders the full TUI screen.
@@ -69,7 +75,7 @@ func (m Model) View() string {
 		return "loading..."
 	}
 
-	// Split height: 35% jobs (capped at 12 rows), 65% logs, minus 1 for hint bar.
+	// Split height: 35% jobs (capped at 14 rows), 65% logs, minus 1 for hint bar.
 	topH, botH := splitHeight(m.height-1, 0.35, 6)
 	if topH > 14 {
 		topH = 14
@@ -83,116 +89,106 @@ func (m Model) View() string {
 	content := lipgloss.JoinVertical(lipgloss.Left, top, bot, bar)
 
 	// Render overlays on top if open.
+	bgColor := string(m.pal().bg)
 	if m.editOverlay != nil {
-		return renderOverlay(content, m.viewEditOverlay(), m.width, m.height)
+		return renderOverlay(content, m.viewEditOverlay(), m.width, m.height, bgColor)
 	}
 	if m.deleteConfirm != nil {
-		return renderOverlay(content, m.viewDeleteConfirm(), m.width, m.height)
+		return renderOverlay(content, m.viewDeleteConfirm(), m.width, m.height, bgColor)
 	}
 	return content
 }
 
 // viewJobList renders the top pane showing the list of cron entries.
 func (m Model) viewJobList(width, height int) string {
-	p := m.pal()
-	// Inner width accounts for border (2) and padding.
-	inner := width - 4
-	if inner < 10 {
-		inner = 10
+	pal := m.ansiPal()
+	borderColor := pal.Border
+	if m.activePane == 0 {
+		borderColor = pal.Accent
 	}
 
-	// Panel band header spanning full inner width.
-	var headerRight string
-	if m.filtering {
-		headerRight = " " + m.filterInput.View()
-	}
-	cronTitle := translations.Safe(translations.GlobalProvider(), translations.KeyCronTitle, "CRON JOBS")
-	header := m.panelBand(cronTitle+headerRight, inner)
-
-	// Build rows.
 	var rows []string
-	if len(m.filtered) == 0 {
-		if m.filterInput.Value() != "" {
-			rows = append(rows, lipgloss.NewStyle().Foreground(p.dim).Render("  no matches"))
-		} else {
-			rows = append(rows, lipgloss.NewStyle().Foreground(p.dim).Render("  no scheduled jobs"))
+
+	// Panel header — themed sprite or dynamic header.
+	if sprite := panelrender.PanelHeader(m.bundle, "cron", width, borderColor); sprite != nil {
+		rows = append(rows, sprite...)
+		// Filter row appended below header when active.
+		if m.filtering {
+			prompt := fmt.Sprintf("  %s/%s %s%s%s", pal.Accent, panelrender.RST, pal.FG, m.filterInput.View(), panelrender.RST)
+			rows = append(rows, panelrender.BoxRow(prompt, width, borderColor))
 		}
 	} else {
-		visibleRows := height - 4 // header + border top + border bot + header row
-		if visibleRows < 1 {
-			visibleRows = 1
+		title := panelrender.RenderHeader("cron")
+		if m.filtering {
+			title += " " + m.filterInput.View()
 		}
-		m.clampScrollForList(len(m.filtered), visibleRows)
+		rows = append(rows, panelrender.BoxTop(width, title, borderColor, pal.Accent))
+	}
 
+	// Available content rows (leave 1 for BoxBot).
+	maxRows := height - len(rows) - 1
+	if maxRows < 0 {
+		maxRows = 0
+	}
+
+	if len(m.filtered) == 0 {
+		if m.filterInput.Value() != "" {
+			rows = append(rows, panelrender.BoxRow(pal.Dim+"  no matches"+panelrender.RST, width, borderColor))
+		} else {
+			rows = append(rows, panelrender.BoxRow(pal.Dim+"  no scheduled jobs"+panelrender.RST, width, borderColor))
+		}
+	} else {
+		m.clampScrollForList(len(m.filtered), maxRows)
 		start := m.scrollOffset
-		end := start + visibleRows
+		end := start + maxRows
 		if end > len(m.filtered) {
 			end = len(m.filtered)
 		}
-
 		for i := start; i < end; i++ {
 			e := m.filtered[i]
+			content := m.formatEntryRowANSI(e, width-4, pal)
 			if i == m.selectedIdx {
-				// `>` indicator + accent highlight
-				indicator := lipgloss.NewStyle().Foreground(p.accent).Bold(true).Render(">")
-				rowText := m.formatEntryRow(e, inner-2, p)
-				row := lipgloss.NewStyle().Foreground(p.accent).Render(rowText)
-				rows = append(rows, indicator+" "+row)
+				indicator := pal.Accent + panelrender.BLD + ">" + panelrender.RST + " "
+				rows = append(rows, panelrender.BoxRow(indicator+content, width, borderColor))
 			} else {
-				rowText := m.formatEntryRow(e, inner-2, p)
-				rows = append(rows, "  "+lipgloss.NewStyle().Foreground(p.fg).Render(rowText))
+				rows = append(rows, panelrender.BoxRow("  "+content, width, borderColor))
 			}
 		}
 	}
 
-	// Assemble pane content.
-	lines := []string{header}
-	lines = append(lines, rows...)
-
-	// Pad to fill height (accounting for borders).
-	contentH := height - 2 // 2 for borders
-	for len(lines) < contentH {
-		lines = append(lines, "")
+	// Pad remaining space.
+	for len(rows) < height-1 {
+		rows = append(rows, panelrender.BoxRow("", width, borderColor))
 	}
-
-	body := strings.Join(lines, "\n")
-
-	borderColor := p.border
-	if m.activePane == 0 {
-		borderColor = p.accent
+	rows = append(rows, panelrender.BoxBot(width, borderColor))
+	if len(rows) > height {
+		rows = rows[:height]
 	}
-	paneStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		Width(width - 2).
-		Height(height - 2)
-	return paneStyle.Render(body)
+	return strings.Join(rows, "\n")
 }
 
-// formatEntryRow formats a single entry as a fixed-width row string.
-func (m Model) formatEntryRow(e cron.Entry, width int, p viewPal) string {
+// formatEntryRowANSI formats a single cron entry as an ANSI-colored row string.
+func (m Model) formatEntryRowANSI(e cron.Entry, width int, pal styles.ANSIPalette) string {
 	nextStr := ""
 	if t, err := cron.NextRun(e); err == nil {
 		nextStr = cron.FormatRelative(t)
 	} else {
-		nextStr = lipgloss.NewStyle().Foreground(p.errCol).Render("invalid")
+		nextStr = pal.Error + "invalid" + panelrender.RST
 	}
 
-	// Kind badge color: accent for agent, dim for pipeline.
-	kindStyle := lipgloss.NewStyle().Foreground(p.dim)
+	kindColor := pal.Dim
 	if e.Kind == "agent" {
-		kindStyle = lipgloss.NewStyle().Foreground(p.accent)
+		kindColor = pal.Accent
 	}
 
-	// Columns: name (30%), schedule (25%), kind (10%), next (rest)
 	nameW := width * 30 / 100
 	schedW := width * 25 / 100
 	kindW := 10
 
 	name := truncate(e.Name, nameW)
 	sched := truncate(e.Schedule, schedW)
-	kind := kindStyle.Render(truncate(e.Kind, kindW))
-	next := lipgloss.NewStyle().Foreground(p.dim).Render(nextStr)
+	kind := kindColor + truncate(e.Kind, kindW) + panelrender.RST
+	next := pal.Dim + nextStr + panelrender.RST
 
 	return fmt.Sprintf("%-*s %-*s %-*s %s",
 		nameW, name,
@@ -204,88 +200,101 @@ func (m Model) formatEntryRow(e cron.Entry, width int, p viewPal) string {
 
 // viewLogPane renders the bottom pane showing recent log output.
 func (m Model) viewLogPane(width, height int) string {
-	p := m.pal()
-	inner := width - 4
-	if inner < 10 {
-		inner = 10
+	pal := m.ansiPal()
+	borderColor := pal.Border
+	if m.activePane == 1 {
+		borderColor = pal.Accent
 	}
 
-	header := m.panelBand("LOG OUTPUT", inner)
+	var rows []string
 
-	// Available lines for log content.
-	contentLines := height - 4 // header + 2 borders + header row
-	if contentLines < 1 {
-		contentLines = 1
+	// Panel header.
+	if sprite := panelrender.PanelHeader(m.bundle, "log_output", width, borderColor); sprite != nil {
+		rows = append(rows, sprite...)
+	} else {
+		rows = append(rows, panelrender.BoxTop(width, "LOG OUTPUT", borderColor, pal.Accent))
 	}
 
-	// Calculate scroll: auto-scroll to bottom unless user scrolled up.
+	maxLines := height - len(rows) - 1 // -1 for BoxBot
+	if maxLines < 1 {
+		maxLines = 1
+	}
+
 	totalLogs := len(m.logBuf)
-	maxScroll := totalLogs - contentLines
+	maxScroll := totalLogs - maxLines
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
-
 	offset := maxScroll - m.logScrollOffset
 	if offset < 0 {
 		offset = 0
 	}
-
-	end := offset + contentLines
+	end := offset + maxLines
 	if end > totalLogs {
 		end = totalLogs
 	}
 
-	var logLines []string
-	dimStyle := lipgloss.NewStyle().Foreground(p.dim)
 	if totalLogs == 0 {
-		logLines = append(logLines, dimStyle.Render("  waiting for log output..."))
+		rows = append(rows, panelrender.BoxRow(pal.Dim+"  waiting for log output..."+panelrender.RST, width, borderColor))
 	} else {
-		slice := m.logBuf[offset:end]
-		for _, l := range slice {
+		for _, l := range m.logBuf[offset:end] {
 			l = strings.TrimRight(l, "\n\r")
-			l = truncate(l, inner)
-			logLines = append(logLines, dimStyle.Render(l))
+			l = truncate(l, width-4)
+			rows = append(rows, panelrender.BoxRow(pal.Dim+l+panelrender.RST, width, borderColor))
 		}
 	}
 
-	lines := []string{header}
-	lines = append(lines, logLines...)
-
-	// Pad to fill content height.
-	paneH := height - 2
-	for len(lines) < paneH {
-		lines = append(lines, "")
+	for len(rows) < height-1 {
+		rows = append(rows, panelrender.BoxRow("", width, borderColor))
 	}
-
-	body := strings.Join(lines, "\n")
-
-	borderColor := p.border
-	if m.activePane == 1 {
-		borderColor = p.accent
+	rows = append(rows, panelrender.BoxBot(width, borderColor))
+	if len(rows) > height {
+		rows = rows[:height]
 	}
-	paneStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		Width(width - 2).
-		Height(height - 2)
-	return paneStyle.Render(body)
+	return strings.Join(rows, "\n")
 }
 
-// viewHintBar renders the single-line hint strip at the bottom.
-func (m Model) viewHintBar(_ int) string {
-	p := m.pal()
-	dimStyle := lipgloss.NewStyle().Foreground(p.dim)
-	var hints string
+// viewHintBar renders the single-line keybinding hint strip at the bottom.
+// Keys are colored with the theme's accent; descriptions with dim.
+func (m Model) viewHintBar(width int) string {
+	pal := m.ansiPal()
+	hint := func(key, desc string) string {
+		return pal.Accent + key + pal.Dim + " " + desc + panelrender.RST
+	}
+	sep := pal.Dim + " · " + panelrender.RST
+
+	var parts []string
 	if m.activePane == 0 {
 		if m.filtering {
-			hints = dimStyle.Render("[esc] clear filter  [enter] confirm  [tab] logs pane")
+			parts = []string{
+				hint("esc", "clear filter"),
+				hint("enter", "confirm"),
+				hint("tab", "logs pane"),
+			}
 		} else {
-			hints = dimStyle.Render("[j/k] navigate  [e] edit  [d] delete  [enter/r] run now  [/] filter  [tab] logs  [q] quit")
+			parts = []string{
+				hint("j/k", "navigate"),
+				hint("e", "edit"),
+				hint("d", "delete"),
+				hint("enter/r", "run now"),
+				hint("/", "filter"),
+				hint("tab", "logs"),
+				hint("q", "quit"),
+			}
 		}
 	} else {
-		hints = dimStyle.Render("[j/k] scroll  [tab] jobs pane  [q] quit")
+		parts = []string{
+			hint("j/k", "scroll"),
+			hint("tab", "jobs pane"),
+			hint("q", "quit"),
+		}
 	}
-	return hints
+
+	bar := strings.Join(parts, sep)
+	if lipgloss.Width(bar) < width {
+		bar += strings.Repeat(" ", width-lipgloss.Width(bar))
+	}
+	return bar + panelrender.RST
 }
 
 // viewEditOverlay renders the edit form overlay.
@@ -297,7 +306,7 @@ func (m Model) viewEditOverlay() string {
 	overlayStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(p.pink).
-		Background(lipgloss.Color(draculaBg)).
+		Background(p.bg).
 		Padding(1, 2)
 
 	var sb strings.Builder
@@ -350,11 +359,11 @@ func splitHeight(total int, ratio float64, minRows int) (top, bot int) {
 }
 
 // renderOverlay places overlayContent centered over background using lipgloss.Place.
-func renderOverlay(background, overlayContent string, width, height int) string {
+func renderOverlay(_, overlayContent string, width, height int, bgColor string) string {
 	return lipgloss.Place(width, height,
 		lipgloss.Center, lipgloss.Center,
 		overlayContent,
-		lipgloss.WithWhitespaceBackground(lipgloss.Color(draculaBg)),
+		lipgloss.WithWhitespaceBackground(lipgloss.Color(bgColor)),
 	)
 }
 
@@ -372,4 +381,3 @@ func truncate(s string, n int) string {
 	}
 	return string(runes[:n-1]) + "…"
 }
-

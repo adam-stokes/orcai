@@ -165,10 +165,12 @@ var cronTuiCmd = &cobra.Command{
 			}
 		}()
 
-		// Load theme registry to pick up the user's active theme.
+		// Load theme registry to pick up the user's active theme and make it
+		// globally accessible for cross-process theme polling.
 		var bundle *themes.Bundle
 		if reg, err := themes.NewRegistry(""); err == nil {
 			bundle = reg.Active()
+			themes.SetGlobalRegistry(reg)
 		}
 
 		m, err := crontui.New(bundle)

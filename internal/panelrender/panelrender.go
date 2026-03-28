@@ -1,0 +1,303 @@
+// Package panelrender provides shared ANSI box-drawing and panel-header
+// rendering utilities used by both switchboard and standalone sub-TUIs
+// (crontui, jumpwindow, etc.).
+package panelrender
+
+import (
+	"bytes"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/adam-stokes/orcai/internal/styles"
+	"github.com/adam-stokes/orcai/internal/themes"
+	"github.com/adam-stokes/orcai/internal/translations"
+)
+
+// RST is the ANSI reset escape sequence.
+const RST = "\x1b[0m"
+
+// BLD is the ANSI bold escape sequence.
+const BLD = "\x1b[1m"
+
+// panelTitles maps panel keys to their plain-text fallback titles.
+var panelTitles = map[string]string{
+	"pipelines":     "PIPELINES",
+	"agent_runner":  "AGENT RUNNER",
+	"signal_board":  "SIGNAL BOARD",
+	"activity_feed": "ACTIVITY FEED",
+	"inbox":         "INBOX",
+	"cron":          "CRON JOBS",
+}
+
+// RenderHeader returns the translated (or plain-text fallback) title for a panel.
+// Used in BoxTop and DynamicHeader when no ANS sprite is available.
+func RenderHeader(panel string) string {
+	title := panelTitles[panel]
+	if title == "" {
+		title = strings.ToUpper(panel)
+	}
+	if p := translations.GlobalProvider(); p != nil {
+		key := panel + "_panel_title"
+		return p.T(key, title)
+	}
+	return title
+}
+
+// ── Box drawing ───────────────────────────────────────────────────────────────
+
+// BoxTop renders the top border of a box. If title is non-empty it is centered
+// in the border using borderColor and labelColor.
+func BoxTop(w int, title, borderColor, labelColor string) string {
+	if title == "" {
+		return borderColor + "┌" + strings.Repeat("─", pmax(w-2, 0)) + "┐" + RST
+	}
+	label := " " + title + " "
+	dashes := pmax(w-2-lipgloss.Width(label), 0)
+	left := dashes / 2
+	right := dashes - left
+	return borderColor + "┌" + strings.Repeat("─", left) + labelColor + label + borderColor + strings.Repeat("─", right) + "┐" + RST
+}
+
+// BoxBot renders the bottom border of a box.
+func BoxBot(w int, borderColor string) string {
+	return borderColor + "└" + strings.Repeat("─", pmax(w-2, 0)) + "┘" + RST
+}
+
+// BoxRow renders a single content row padded to fill the inner box width.
+func BoxRow(content string, w int, borderColor string) string {
+	inner := w - 2
+	pad := pmax(inner-lipgloss.Width(content), 0)
+	return borderColor + "│" + RST + content + strings.Repeat(" ", pad) + borderColor + "│" + RST
+}
+
+// ── Panel headers ─────────────────────────────────────────────────────────────
+
+// SpriteLines returns the ANS sprite for a panel as individual lines, ready to
+// be prepended in place of a BoxTop call.
+//
+// Bundle.HeaderBytes[panel] is an ordered slice of sprite variants (widest
+// first). SpriteLines tries each variant in order and returns the first whose
+// visible width fits panelWidth. When panelWidth is 0 the width check is
+// skipped and the first variant is used.
+//
+// Returns nil when the bundle has no sprites for this panel or none fit.
+func SpriteLines(bundle *themes.Bundle, panel string, panelWidth int) []string {
+	if bundle == nil || bundle.HeaderBytes == nil {
+		return nil
+	}
+	variants, ok := bundle.HeaderBytes[panel]
+	if !ok || len(variants) == 0 {
+		return nil
+	}
+	for _, ans := range variants {
+		if len(ans) == 0 {
+			continue
+		}
+		if panelWidth > 0 && spriteWidth(ans) > panelWidth {
+			continue // too wide — try next variant
+		}
+		var lines []string
+		for _, raw := range bytes.Split(ans, []byte("\n")) {
+			s := strings.TrimRight(string(raw), "\r")
+			if visibleWidth(s) > 0 {
+				lines = append(lines, s)
+			}
+		}
+		if len(lines) == 0 {
+			continue
+		}
+		lines[len(lines)-1] += RST
+		return lines
+	}
+	return nil
+}
+
+// DynamicHeader generates a 3-line panel header at exactly width visible
+// columns, using colors from bundle.HeaderStyle.
+//
+// Returns nil when bundle is nil or bundle.HeaderStyle has no entry for panel.
+func DynamicHeader(bundle *themes.Bundle, panel string, width int, borderColor string) []string {
+	if bundle == nil || width < 4 {
+		return nil
+	}
+	hs := bundle.HeaderStyle
+	ps, ok := hs.Panels[panel]
+	if !ok {
+		return nil
+	}
+
+	topChar := "▄"
+	if hs.TopChar != "" {
+		topChar = hs.TopChar
+	}
+	botChar := "▀"
+	if hs.BotChar != "" {
+		botChar = hs.BotChar
+	}
+	accentSeq := hexToFGSeq(bundle.ResolveRef(ps.Accent))
+	accentBGSeq := hexToBGSeq(bundle.ResolveRef(ps.Accent))
+	textSeq := hexToFGSeq(bundle.ResolveRef(ps.Text))
+
+	var topRow, botRow string
+	if bundle.HeaderPattern != "" {
+		if def, ok := styles.Patterns[bundle.HeaderPattern]; ok {
+			topRow = styles.TilePattern(def.Top, width)
+			botRow = styles.TilePattern(def.Bottom, width)
+		}
+	}
+	if topRow == "" {
+		topRow = strings.Repeat(topChar, width)
+	}
+	if botRow == "" {
+		botRow = strings.Repeat(botChar, width)
+	}
+
+	gradStops := ps.GradientBorder
+	if len(gradStops) == 0 {
+		gradStops = bundle.GradientBorder
+	}
+
+	var topLine, botLine string
+	if len(gradStops) > 0 {
+		topLine = BLD + applyGradientToRow(topRow, gradStops) + RST
+		reversed := make([]string, len(gradStops))
+		for i, s := range gradStops {
+			reversed[len(gradStops)-1-i] = s
+		}
+		botLine = BLD + applyGradientToRow(botRow, reversed) + RST
+	} else {
+		topLine = accentSeq + BLD + topRow + RST
+		botLine = accentSeq + BLD + botRow + RST
+	}
+
+	title := RenderHeader(panel)
+	titleRunes := []rune(title)
+	pad := width - len(titleRunes)
+	if pad < 0 {
+		pad = 0
+		titleRunes = titleRunes[:width]
+	}
+	lp := pad / 2
+	rp := pad - lp
+	titleLine := accentBGSeq + textSeq + BLD +
+		strings.Repeat(" ", lp) + string(titleRunes) + strings.Repeat(" ", rp) +
+		RST
+
+	return []string{topLine, titleLine, botLine}
+}
+
+// PanelHeader returns the best available header for a panel at the given width.
+// It tries fixed-width .ans sprites first (SpriteLines), then falls back to
+// DynamicHeader which always produces the correct panel width.
+// Returns nil only when both sources are unavailable.
+func PanelHeader(bundle *themes.Bundle, panel string, width int, borderColor string) []string {
+	if lines := SpriteLines(bundle, panel, width); lines != nil {
+		return lines
+	}
+	return DynamicHeader(bundle, panel, width, borderColor)
+}
+
+// ── Private helpers ───────────────────────────────────────────────────────────
+
+func hexToFGSeq(hex string) string {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return "\x1b[38;2;189;147;249m" // Dracula purple fallback
+	}
+	parse := func(s string) uint8 {
+		v, _ := strconv.ParseUint(s, 16, 8)
+		return uint8(v)
+	}
+	r, g, b := parse(hex[0:2]), parse(hex[2:4]), parse(hex[4:6])
+	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", r, g, b)
+}
+
+func hexToBGSeq(hex string) string {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return "\x1b[48;2;189;147;249m" // Dracula purple fallback
+	}
+	parse := func(s string) uint8 {
+		v, _ := strconv.ParseUint(s, 16, 8)
+		return uint8(v)
+	}
+	r, g, b := parse(hex[0:2]), parse(hex[2:4]), parse(hex[4:6])
+	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b)
+}
+
+func spriteWidth(ans []byte) int {
+	maxW := 0
+	for _, line := range bytes.Split(ans, []byte("\n")) {
+		w := visibleWidth(string(line))
+		if w > maxW {
+			maxW = w
+		}
+	}
+	return maxW
+}
+
+// VisibleWidth returns the printable character count of s, stripping ANSI escapes.
+func VisibleWidth(s string) int { return visibleWidth(s) }
+
+func visibleWidth(s string) int {
+	inEsc := false
+	w := 0
+	i := 0
+	for i < len(s) {
+		b := s[i]
+		if b == 0x1b && i+1 < len(s) && s[i+1] == '[' {
+			inEsc = true
+			i += 2
+			continue
+		}
+		if inEsc {
+			if (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') {
+				inEsc = false
+			}
+			i++
+			continue
+		}
+		_, size := decodeRuneAt(s, i)
+		w++
+		i += size
+	}
+	return w
+}
+
+func decodeRuneAt(s string, i int) (rune, int) {
+	end := i + 4
+	if end > len(s) {
+		end = len(s)
+	}
+	runes := []rune(s[i:end])
+	if len(runes) == 0 {
+		return 0, 1
+	}
+	return runes[0], len(string(runes[0]))
+}
+
+func applyGradientToRow(row string, stops []string) string {
+	runes := []rune(row)
+	if len(runes) == 0 {
+		return row
+	}
+	colors := styles.GradientStops(stops, len(runes))
+	var sb strings.Builder
+	for i, r := range runes {
+		if i < len(colors) {
+			sb.WriteString(styles.HexToFGEsc(colors[i]))
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
+func pmax(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

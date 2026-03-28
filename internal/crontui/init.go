@@ -52,16 +52,22 @@ func New(bundle *themes.Bundle) (Model, error) {
 		themeCh = gr.SafeSubscribe()
 	}
 
+	var lastThemeName string
+	if bundle != nil {
+		lastThemeName = bundle.Name
+	}
+
 	m := Model{
-		scheduler:   sched,
-		runStore:    s,
-		logger:      logger,
-		bundle:      bundle,
-		entries:     entries,
-		filtered:    entries,
-		logCh:       logCh,
-		filterInput: fi,
-		themeCh:     themeCh,
+		scheduler:     sched,
+		runStore:      s,
+		logger:        logger,
+		bundle:        bundle,
+		lastThemeName: lastThemeName,
+		entries:       entries,
+		filtered:      entries,
+		logCh:         logCh,
+		filterInput:   fi,
+		themeCh:       themeCh,
 	}
 	return m, nil
 }
@@ -80,6 +86,7 @@ func (m Model) Init() tea.Cmd {
 		},
 		tick(),
 		listenLogs(m.logCh),
+		pollThemeFile(),
 	}
 	if m.themeCh != nil {
 		cmds = append(cmds, listenTheme(m.themeCh))
@@ -109,4 +116,14 @@ func listenTheme(ch chan string) tea.Cmd {
 	return func() tea.Msg {
 		return themeChangedMsg{name: <-ch}
 	}
+}
+
+// pollThemeFile schedules a periodic check of the active_theme config file so
+// that a standalone crontui process picks up theme changes made by the
+// switchboard (which runs in a different OS process and writes the file when
+// the user switches themes).
+func pollThemeFile() tea.Cmd {
+	return tea.Tick(5*time.Second, func(_ time.Time) tea.Msg {
+		return themeFilePollMsg{}
+	})
 }

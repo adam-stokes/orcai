@@ -36,9 +36,13 @@ type runDoneMsg struct {
 }
 type entriesReloadedMsg struct{ entries []cron.Entry }
 
-// themeChangedMsg is sent when the active theme changes.
-// The name field holds the new theme name looked up from GlobalRegistry.
+// themeChangedMsg is sent when the active theme changes via the in-process
+// channel (used when crontui is embedded; rarely fires in standalone mode).
 type themeChangedMsg struct{ name string }
+
+// themeFilePollMsg is sent by the periodic file-poll ticker. The standalone
+// TUI uses this to detect theme changes written by the switchboard process.
+type themeFilePollMsg struct{}
 
 // LogSink implements io.Writer and posts each line as logLineMsg to a channel.
 type LogSink struct {
@@ -78,15 +82,16 @@ const logBufMax = 500
 
 // Model is the BubbleTea model for the orcai-cron TUI.
 type Model struct {
-	scheduler *cron.Scheduler
-	runStore  *store.Store   // result store for recording run history; may be nil
-	logger    *log.Logger    // structured logger wired to the log pane
-	bundle    *themes.Bundle // active theme; nil = Dracula fallback
-	entries   []cron.Entry
-	filtered  []cron.Entry // after fuzzy filter
-	logBuf    []string     // ring buffer, max logBufMax lines
-	logCh     chan tea.Msg  // LogSink writes here
-	themeCh   chan string   // receives new theme names from GlobalRegistry; may be nil
+	scheduler     *cron.Scheduler
+	runStore      *store.Store   // result store for recording run history; may be nil
+	logger        *log.Logger    // structured logger wired to the log pane
+	bundle        *themes.Bundle // active theme; nil = Dracula fallback
+	lastThemeName string         // last known theme name for cross-process change detection
+	entries       []cron.Entry
+	filtered      []cron.Entry // after fuzzy filter
+	logBuf        []string     // ring buffer, max logBufMax lines
+	logCh         chan tea.Msg  // LogSink writes here
+	themeCh       chan string   // receives new theme names from GlobalRegistry; may be nil
 
 	filterInput textinput.Model
 	filtering   bool // true when filter input is active
