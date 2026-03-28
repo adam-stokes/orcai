@@ -621,7 +621,8 @@ func pipelinesDir() string {
 }
 
 // writeSingleStepPipeline generates a minimal single-step pipeline YAML for a
-// scheduled agent run and writes it to the pipelines directory. Returns the
+// scheduled agent run and writes it to the .agents/ subdirectory of the pipelines
+// directory so it does not appear in the PIPELINES launcher panel. Returns the
 // absolute path of the written file so the caller can reference it in a cron entry.
 func writeSingleStepPipeline(name, providerID, modelID, prompt string) (string, error) {
 	dir := filepath.Join(pipelinesDir(), ".agents")
