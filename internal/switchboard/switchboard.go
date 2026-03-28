@@ -285,9 +285,10 @@ type Model struct {
 	inboxPanel              InboxPanel
 	inboxReadIDs            map[int64]bool
 	store                   *store.Store
-	inboxDetailOpen         bool
-	inboxDetailIdx    int
-	inboxDetailScroll int
+	inboxDetailOpen      bool
+	inboxMarkdownMode    bool
+	inboxDetailIdx       int
+	inboxDetailScroll    int
 	// Cron panel
 	cronPanel CronPanel
 }
@@ -578,6 +579,13 @@ type modalColors struct {
 	accent  lipgloss.Color
 	dim     lipgloss.Color
 	error   lipgloss.Color
+}
+
+// looksLikeMarkdown returns true when s contains common markdown signals.
+func looksLikeMarkdown(s string) bool {
+	return strings.Contains(s, "# ") ||
+		strings.Contains(s, "**") ||
+		strings.Contains(s, "```")
 }
 
 // resolveModalColors is a thin wrapper around modal.ResolveColors that returns
@@ -1050,6 +1058,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		case "pgdown", "]":
 			m.inboxDetailScroll += 10
+		case "m":
+			m.inboxMarkdownMode = !m.inboxMarkdownMode
+			m.inboxDetailScroll = 0
+			return m, nil
 		default:
 		}
 		return m, nil
@@ -1255,6 +1267,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.inboxDetailOpen = true
 				m.inboxDetailIdx = m.inboxPanel.selectedIdx
 				m.inboxDetailScroll = 0
+				idx := m.inboxPanel.selectedIdx
+				if idx < len(runs) {
+					m.inboxMarkdownMode = looksLikeMarkdown(runs[idx].Stdout)
+				}
 			}
 			return m, nil
 		case "x":
@@ -2412,7 +2428,7 @@ func (m Model) View() string {
 	// Inbox detail overlay — full-screen detail view for a run result.
 	if m.inboxDetailOpen && len(m.inboxModel.Runs()) > 0 {
 		base := topBar + "\n" + body + "\n" + m.viewBottomBar(w)
-		return overlayCenter(base, m.viewInboxDetail(w, h), w, h)
+		return overlayCenter(base, m.viewInboxDetail(w, h, m.inboxMarkdownMode), w, h)
 	}
 
 	return topBar + "\n" + body + "\n" + m.viewBottomBar(w)

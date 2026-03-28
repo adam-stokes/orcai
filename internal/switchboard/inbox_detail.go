@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/adam-stokes/orcai/internal/store"
@@ -39,7 +40,7 @@ func collapseTilde(path string) string {
 
 // buildRunContent formats the full detail text for a run, mirroring the
 // content builder that was previously in internal/inbox/modal.go.
-func buildRunContent(run store.Run, mc modalColors) string {
+func buildRunContent(run store.Run, mc modalColors, markdownMode bool) string {
 	dim := lipgloss.NewStyle().Foreground(mc.dim)
 	fg := lipgloss.NewStyle().Foreground(mc.fg)
 	success := lipgloss.NewStyle().Foreground(lipgloss.Color("#50fa7b"))
@@ -89,8 +90,19 @@ func buildRunContent(run store.Run, mc modalColors) string {
 
 	// Stdout
 	if run.Stdout != "" {
-		sb.WriteString(run.Stdout)
-		if !strings.HasSuffix(run.Stdout, "\n") {
+		stdout := run.Stdout
+		if markdownMode {
+			if renderer, err := glamour.NewTermRenderer(
+				glamour.WithStandardStyle("dark"),
+				glamour.WithWordWrap(80),
+			); err == nil {
+				if rendered, err := renderer.Render(run.Stdout); err == nil {
+					stdout = rendered
+				}
+			}
+		}
+		sb.WriteString(stdout)
+		if !strings.HasSuffix(stdout, "\n") {
 			sb.WriteString("\n")
 		}
 	} else {
@@ -112,7 +124,7 @@ func buildRunContent(run store.Run, mc modalColors) string {
 
 // viewInboxDetail renders the inbox run detail as a centered overlay, following
 // the same pattern as viewHelpModal.
-func (m Model) viewInboxDetail(w, h int) string {
+func (m Model) viewInboxDetail(w, h int, markdownMode bool) string {
 	runs := m.inboxModel.Runs()
 	if len(runs) == 0 {
 		return ""
@@ -150,7 +162,7 @@ func (m Model) viewInboxDetail(w, h int) string {
 		lipgloss.NewStyle().Foreground(mc.fg).Render(run.Name)
 
 	// Build scrollable body content.
-	content := buildRunContent(run, mc)
+	content := buildRunContent(run, mc, markdownMode)
 	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
 	visibleH := h - 6 // header + border + footer + some padding
 	if visibleH < 4 {
@@ -179,17 +191,21 @@ func (m Model) viewInboxDetail(w, h int) string {
 	total := len(lines)
 	dimStyle := lipgloss.NewStyle().Foreground(mc.dim)
 	accentStyle := lipgloss.NewStyle().Foreground(mc.accent)
+	mdHint := "[m] md"
+	if markdownMode {
+		mdHint = "[m] raw"
+	}
 	var footer string
 	if total > visibleH {
 		scrollHint := accentStyle.Render("j/k  [/]") + dimStyle.Render(" scroll  ")
-		keyHints := dimStyle.Render("[n]ext  [p]rev  [q]uit")
+		keyHints := dimStyle.Render("[n]ext  [p]rev  [q]uit  "+mdHint)
 		footer = lipgloss.NewStyle().Foreground(mc.dim).
 			Width(innerW).Padding(0, 1).
 			Render(scrollHint + keyHints)
 	} else {
 		footer = lipgloss.NewStyle().Foreground(mc.dim).
 			Width(innerW).Padding(0, 1).
-			Render("[n]ext  [p]rev  [q]uit")
+			Render("[n]ext  [p]rev  [q]uit  " + mdHint)
 	}
 
 	boxContent := strings.Join([]string{
