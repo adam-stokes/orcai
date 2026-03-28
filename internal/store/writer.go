@@ -50,14 +50,15 @@ func (w *writer) close() {
 }
 
 // RecordRunStart inserts a new in-flight run row and returns its ID.
-// started_at is recorded in unix milliseconds using Go's clock for millisecond precision.
-func (s *Store) RecordRunStart(kind, name string) (int64, error) {
+// started_at is recorded in unix milliseconds.
+// metadata is an optional JSON blob (pass "" to omit).
+func (s *Store) RecordRunStart(kind, name, metadata string) (int64, error) {
 	startedAt := time.Now().UnixMilli()
 	var id int64
 	err := s.writer.send(func(db *sql.DB) error {
 		res, err := db.Exec(
-			`INSERT INTO runs (kind, name, started_at) VALUES (?, ?, ?)`,
-			kind, name, startedAt,
+			`INSERT INTO runs (kind, name, started_at, metadata) VALUES (?, ?, ?, ?)`,
+			kind, name, startedAt, metadata,
 		)
 		if err != nil {
 			return err

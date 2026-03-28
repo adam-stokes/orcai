@@ -17,7 +17,7 @@ import (
 // StoreWriter is the subset of store.Store that Scheduler needs. Using an
 // interface avoids a direct import dependency on the store package.
 type StoreWriter interface {
-	RecordRunStart(kind, name string) (int64, error)
+	RecordRunStart(kind, name, metadata string) (int64, error)
 	RecordRunComplete(id int64, exitStatus int, stdout, stderr string) error
 }
 
@@ -158,7 +158,7 @@ func (s *Scheduler) runEntry(entry Entry) {
 	// Record run start.
 	var runID int64
 	if s.store != nil {
-		id, err := s.store.RecordRunStart(entry.Kind, entry.Name)
+		id, err := s.store.RecordRunStart(entry.Kind, entry.Name, "")
 		if err != nil {
 			s.logError("cron: store.RecordRunStart failed", "name", entry.Name, "err", err)
 		} else {
@@ -173,6 +173,9 @@ func (s *Scheduler) runEntry(entry Entry) {
 	}
 
 	cmd := exec.CommandContext(ctx, self, args...)
+	if entry.WorkingDir != "" {
+		cmd.Dir = entry.WorkingDir
+	}
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf

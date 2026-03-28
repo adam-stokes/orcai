@@ -23,7 +23,7 @@ func openTestStore(t *testing.T) *Store {
 func TestRecordRunStart(t *testing.T) {
 	s := openTestStore(t)
 
-	id, err := s.RecordRunStart("pipeline", "my-pipeline")
+	id, err := s.RecordRunStart("pipeline", "my-pipeline", "")
 	if err != nil {
 		t.Fatalf("RecordRunStart: %v", err)
 	}
@@ -32,10 +32,33 @@ func TestRecordRunStart(t *testing.T) {
 	}
 }
 
+func TestRecordRunStart_WithMetadata(t *testing.T) {
+	s := openTestStore(t)
+
+	id, err := s.RecordRunStart("pipeline", "meta-test", `{"cwd":"/tmp","pipeline_file":"/tmp/foo.yaml"}`)
+	if err != nil {
+		t.Fatalf("RecordRunStart: %v", err)
+	}
+
+	runs, err := s.QueryRuns(1)
+	if err != nil {
+		t.Fatalf("QueryRuns: %v", err)
+	}
+	if len(runs) == 0 {
+		t.Fatal("want 1 run, got 0")
+	}
+	if runs[0].ID != id {
+		t.Errorf("want id %d, got %d", id, runs[0].ID)
+	}
+	if runs[0].Metadata != `{"cwd":"/tmp","pipeline_file":"/tmp/foo.yaml"}` {
+		t.Errorf("want metadata blob, got %q", runs[0].Metadata)
+	}
+}
+
 func TestRecordRunComplete(t *testing.T) {
 	s := openTestStore(t)
 
-	id, err := s.RecordRunStart("agent", "my-agent")
+	id, err := s.RecordRunStart("agent", "my-agent", "")
 	if err != nil {
 		t.Fatalf("RecordRunStart: %v", err)
 	}
@@ -78,7 +101,7 @@ func TestQueryRuns(t *testing.T) {
 	// Insert three runs with distinct timestamps.
 	names := []string{"first", "second", "third"}
 	for _, n := range names {
-		id, err := s.RecordRunStart("pipeline", n)
+		id, err := s.RecordRunStart("pipeline", n, "")
 		if err != nil {
 			t.Fatalf("RecordRunStart(%s): %v", n, err)
 		}
@@ -118,7 +141,7 @@ func TestQueryRuns(t *testing.T) {
 func TestDeleteRun(t *testing.T) {
 	s := openTestStore(t)
 
-	id, err := s.RecordRunStart("pipeline", "to-delete")
+	id, err := s.RecordRunStart("pipeline", "to-delete", "")
 	if err != nil {
 		t.Fatalf("RecordRunStart: %v", err)
 	}
@@ -153,7 +176,7 @@ func TestAutoPrune_ByAge(t *testing.T) {
 	}
 
 	// Insert a fresh run.
-	_, freshErr := s.RecordRunStart("pipeline", "fresh-run")
+	_, freshErr := s.RecordRunStart("pipeline", "fresh-run", "")
 	if freshErr != nil {
 		t.Fatalf("RecordRunStart fresh: %v", freshErr)
 	}
@@ -188,7 +211,7 @@ func TestAutoPrune_ByCount(t *testing.T) {
 
 	// Insert 15 runs.
 	for i := 0; i < 15; i++ {
-		id, err := s.RecordRunStart("pipeline", fmt.Sprintf("run-%02d", i))
+		id, err := s.RecordRunStart("pipeline", fmt.Sprintf("run-%02d", i), "")
 		if err != nil {
 			t.Fatalf("RecordRunStart run-%02d: %v", i, err)
 		}
@@ -236,7 +259,7 @@ func TestConcurrentWrites(t *testing.T) {
 		i := i
 		go func() {
 			defer wg.Done()
-			id, err := s.RecordRunStart("agent", fmt.Sprintf("concurrent-%d", i))
+			id, err := s.RecordRunStart("agent", fmt.Sprintf("concurrent-%d", i), "")
 			ids[i] = id
 			errs[i] = err
 		}()

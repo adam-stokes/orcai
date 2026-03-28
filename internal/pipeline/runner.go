@@ -78,7 +78,7 @@ func Run(ctx context.Context, p *Pipeline, mgr *plugin.Manager, userInput string
 	// Record run start in the store (nil-safe).
 	var runID int64
 	if cfg.store != nil {
-		id, err := cfg.store.RecordRunStart("pipeline", p.Name)
+		id, err := cfg.store.RecordRunStart("pipeline", p.Name, "")
 		if err == nil {
 			runID = id
 		}
