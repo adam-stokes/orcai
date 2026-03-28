@@ -624,7 +624,7 @@ func pipelinesDir() string {
 // scheduled agent run and writes it to the pipelines directory. Returns the
 // absolute path of the written file so the caller can reference it in a cron entry.
 func writeSingleStepPipeline(name, providerID, modelID, prompt string) (string, error) {
-	dir := pipelinesDir()
+	dir := filepath.Join(pipelinesDir(), ".agents")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -2309,8 +2309,9 @@ func (m Model) View() string {
 	sb := m.buildSignalBoard(sbHeight, feedW)
 	feed := m.viewActivityFeed(feedH, feedW)
 
-	// Right column: signal board lines followed by feed lines, clipped to contentH.
-	rightLines := append(sb, strings.Split(feed, "\n")...)
+	// Right column: signal board, blank separator, feed lines, clipped to contentH.
+	rightLines := append(sb, "")
+	rightLines = append(rightLines, strings.Split(feed, "\n")...)
 	if len(rightLines) > contentH {
 		rightLines = rightLines[:contentH]
 	}
@@ -2873,7 +2874,7 @@ func (m Model) buildLauncherSection(w int) []string {
 	}
 
 	var rows []string
-	if sprite := PanelHeader(m.activeBundle(), "pipelines", w); sprite != nil {
+	if sprite := PanelHeader(m.activeBundle(), "pipelines", w, borderColor); sprite != nil {
 		rows = append(rows, sprite...)
 		if n := len(m.activeJobs); n > 0 {
 			countLine := fmt.Sprintf("  %s%d running%s", pal.Accent, n, aRst)
@@ -2924,7 +2925,7 @@ func (m Model) buildAgentSection(w int) []string {
 	}
 
 	var rows []string
-	if sprite := PanelHeader(m.activeBundle(), "agent_runner", w); sprite != nil {
+	if sprite := PanelHeader(m.activeBundle(), "agent_runner", w, borderColor); sprite != nil {
 		rows = append(rows, sprite...)
 	} else {
 		rows = append(rows, boxTop(w, RenderHeader("agent_runner"), borderColor, pal.Accent))
@@ -2998,7 +2999,7 @@ func (m Model) buildInboxSection(w, height int) []string {
 	}
 
 	var rows []string
-	if sprite := PanelHeader(m.activeBundle(), "inbox", w); sprite != nil {
+	if sprite := PanelHeader(m.activeBundle(), "inbox", w, borderColor); sprite != nil {
 		rows = append(rows, sprite...)
 	} else {
 		rows = append(rows, boxTop(w, RenderHeader("inbox"), borderColor, pal.Accent))
@@ -3091,7 +3092,7 @@ func totalFeedLines(feed []feedEntry) int {
 // viewActivityFeed renders the center activity feed with scroll support.
 func (m Model) viewActivityFeed(height, width int) string {
 	pal := m.ansiPalette()
-	feedSprite := PanelHeader(m.activeBundle(), "activity_feed", width)
+	feedSprite := PanelHeader(m.activeBundle(), "activity_feed", width, pal.Border)
 	headerH := 1
 	if feedSprite != nil {
 		headerH = len(feedSprite)
