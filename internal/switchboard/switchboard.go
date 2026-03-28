@@ -2137,7 +2137,7 @@ func (m Model) submitAgentJob() (Model, tea.Cmd) {
 	_, cancel := context.WithCancel(context.Background())
 	jh := &jobHandle{id: feedID, cancel: cancel, ch: ch, tmuxWindow: windowName, logFile: logFile}
 	if m.store != nil {
-		if runID, err := m.store.RecordRunStart("agent", title, ""); err == nil {
+		if runID, err := m.store.RecordRunStart("agent", title, runMetadataJSON("", cwd)); err == nil {
 			jh.storeRunID = runID
 		}
 	}
