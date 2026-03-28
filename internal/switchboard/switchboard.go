@@ -1267,10 +1267,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.inboxDetailOpen = true
 				m.inboxDetailIdx = m.inboxPanel.selectedIdx
 				m.inboxDetailScroll = 0
-				idx := m.inboxPanel.selectedIdx
-				if idx < len(runs) {
-					m.inboxMarkdownMode = looksLikeMarkdown(runs[idx].Stdout)
-				}
+				m.inboxMarkdownMode = false
 			}
 			return m, nil
 		case "x":

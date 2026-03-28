@@ -3,6 +3,7 @@ package cron
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -158,7 +159,8 @@ func (s *Scheduler) runEntry(entry Entry) {
 	// Record run start.
 	var runID int64
 	if s.store != nil {
-		id, err := s.store.RecordRunStart(entry.Kind, entry.Name, "")
+		meta := cronRunMetadata(entry.Target, entry.WorkingDir)
+		id, err := s.store.RecordRunStart(entry.Kind, entry.Name, meta)
 		if err != nil {
 			s.logError("cron: store.RecordRunStart failed", "name", entry.Name, "err", err)
 		} else {
@@ -269,4 +271,24 @@ func (s *Scheduler) logError(msg string, kv ...any) {
 	if s.logger != nil {
 		s.logger.Error(msg, kv...)
 	}
+}
+
+// cronRunMetadata returns a compact JSON blob for a cron run's metadata.
+// pipelineFile is the target path (for pipeline kind); cwd is the working directory.
+func cronRunMetadata(pipelineFile, cwd string) string {
+	if pipelineFile == "" && cwd == "" {
+		return ""
+	}
+	m := make(map[string]string, 2)
+	if pipelineFile != "" {
+		m["pipeline_file"] = pipelineFile
+	}
+	if cwd != "" {
+		m["cwd"] = cwd
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
