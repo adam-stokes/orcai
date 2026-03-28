@@ -173,9 +173,6 @@ func (s *Scheduler) runEntry(entry Entry) {
 	}
 
 	cmd := exec.CommandContext(ctx, self, args...)
-	if entry.WorkingDir != "" {
-		cmd.Dir = entry.WorkingDir
-	}
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
