@@ -1906,6 +1906,21 @@ func (m Model) handleEnter() (Model, tea.Cmd) {
 	return m, nil
 }
 
+// runMetadataJSON returns a compact JSON blob for run metadata.
+// Empty fields are omitted.
+func runMetadataJSON(pipelineFile, cwd string) string {
+	switch {
+	case pipelineFile != "" && cwd != "":
+		return fmt.Sprintf(`{"pipeline_file":%q,"cwd":%q}`, pipelineFile, cwd)
+	case pipelineFile != "":
+		return fmt.Sprintf(`{"pipeline_file":%q}`, pipelineFile)
+	case cwd != "":
+		return fmt.Sprintf(`{"cwd":%q}`, cwd)
+	default:
+		return ""
+	}
+}
+
 // launchPendingPipeline runs the pipeline stored in pendingPipelineName/YAML
 // using cwd as the working directory. Called when the dir picker confirms.
 func (m Model) launchPendingPipeline(cwd string) (Model, tea.Cmd) {
@@ -1954,7 +1969,13 @@ func (m Model) launchPendingPipeline(cwd string) (Model, tea.Cmd) {
 
 	ch := make(chan tea.Msg, 256)
 	_, cancel := context.WithCancel(context.Background())
-	m.activeJobs[feedID] = &jobHandle{id: feedID, cancel: cancel, ch: ch, tmuxWindow: windowName, logFile: logFile}
+	jh := &jobHandle{id: feedID, cancel: cancel, ch: ch, tmuxWindow: windowName, logFile: logFile}
+	if m.store != nil {
+		if runID, err := m.store.RecordRunStart("pipeline", name, runMetadataJSON(yamlPath, cwd)); err == nil {
+			jh.storeRunID = runID
+		}
+	}
+	m.activeJobs[feedID] = jh
 
 	startLogWatcher(feedID, logFile, doneFile, ch)
 	return m, drainChan(ch)
